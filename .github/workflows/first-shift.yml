@@ -1,0 +1,43 @@
+name: First shift
+
+on:
+  # 7:00 AM PDT on Aug 21, 2026 == 14:00 UTC. Cron has no year field, so this
+  # recurs every Aug 21 — harmless, and the repo is a one-night artifact anyway.
+  schedule:
+    - cron: "0 14 21 8 *"
+    # Daily 14:00 UTC (7:00 AM PDT / 6:00 AM PST). Uncomment to let the agents
+    # run all week instead of just the one morning. Note: after Nov 2 this lands
+    # at 6:00 AM PST, since cron is UTC and does not follow US daylight time.
+    # - cron: "0 14 * * *"
+  workflow_dispatch:
+
+# No pull_request trigger by design: fork PRs cannot cause this to run.
+# Agents are inert until Roman merges them to main.
+
+permissions:
+  contents: read
+
+concurrency:
+  group: first-shift
+  cancel-in-progress: false
+
+jobs:
+  run-agents:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install --quiet anthropic requests PyYAML markdown
+
+      - name: Run every agent
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM: "EO Cohort Agents <agents@wetutorathome.com>"
+        run: python runner/run_agents.py
