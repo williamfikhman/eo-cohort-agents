@@ -118,9 +118,16 @@ def prepare(slug: str, dry_run: bool, allow_scaffold: bool, sandbox: bool) -> No
         _fail(str(exc))
 
     host = signnow.credentials.base_url
-    click.echo(f"SignNow  : {host}{'  [SANDBOX]' if signnow.credentials.is_sandbox else ''}")
+    mode = "API key" if signnow.credentials.uses_api_key else "password grant"
+    click.echo(f"SignNow  : {host}{'  [SANDBOX]' if signnow.credentials.is_sandbox else ''}  ({mode})")
     if dry_run:
         click.secho("DRY RUN  : nothing will be written to SignNow.", fg="yellow")
+
+    try:
+        signnow.verify_token()
+    except SignNowError as exc:
+        _fail(str(exc))
+    click.echo("Auth     : credentials accepted")
 
     prefill = {"ClientPrintedName": client["signatory_name"]}
     tags = tags_payload(prefill=prefill)

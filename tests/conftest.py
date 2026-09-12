@@ -132,9 +132,9 @@ def credentials():
     from signnow import Credentials
 
     return Credentials(
+        base_url="https://api-eval.signnow.com",
         client_id="cid",
         client_secret="csecret",
         username="user@example.com",
         password="hunter2",
-        base_url="https://api-eval.signnow.com",
     )

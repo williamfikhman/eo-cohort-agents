@@ -33,9 +33,8 @@ def test_missing_credentials_are_named(monkeypatch):
 
 
 def test_sandbox_is_detected_from_the_host():
-    creds = Credentials("i", "s", "u", "p", "https://api-eval.signnow.com")
-    assert creds.is_sandbox
-    assert not Credentials("i", "s", "u", "p", "https://api.signnow.com").is_sandbox
+    assert Credentials(base_url="https://api-eval.signnow.com", access_token="k").is_sandbox
+    assert not Credentials(base_url="https://api.signnow.com", access_token="k").is_sandbox
 
 
 def test_secrets_are_not_in_the_repr(credentials):
@@ -266,3 +265,63 @@ def test_audit_never_records_the_account_password(tmp_path, credentials, session
     session.queue("POST", "/oauth2/token", TOKEN_OK)
     make_client(credentials, session, audit).token()
     assert "hunter2" not in audit.path.read_text()
+
+
+# ------------------------------------------------------------- API key mode
+
+
+def api_key_credentials():
+    return Credentials(base_url="https://api-eval.signnow.com", access_token="key-123")
+
+
+def test_an_api_key_alone_is_enough():
+    creds = Credentials.from_env({"SIGNNOW_ACCESS_TOKEN": "key-123"})
+    assert creds.uses_api_key
+    assert creds.username is None
+
+
+def test_api_key_wins_over_password_fields():
+    creds = Credentials.from_env({
+        "SIGNNOW_ACCESS_TOKEN": "key-123", "SIGNNOW_CLIENT_ID": "i",
+        "SIGNNOW_CLIENT_SECRET": "s", "SIGNNOW_USERNAME": "u", "SIGNNOW_PASSWORD": "p",
+    })
+    assert creds.uses_api_key
+
+
+def test_missing_everything_explains_both_options():
+    with pytest.raises(SignNowConfigError, match="SIGNNOW_ACCESS_TOKEN"):
+        Credentials.from_env({})
+
+
+def test_api_key_goes_straight_into_the_bearer_header(session, audit):
+    """No token exchange: the key is the bearer token, as in the SDK's apiKey mode."""
+    session.queue("GET", "/document/doc-1", FakeResponse(200, {"id": "doc-1"}))
+    make_client(api_key_credentials(), session, audit).get_document("doc-1")
+    assert len(session.calls) == 1
+    assert session.calls[0]["headers"]["Authorization"] == "Bearer key-123"
+
+
+def test_a_rejected_api_key_is_not_retried(session, audit):
+    """There is nothing to refresh to, so a 401 must surface, not loop."""
+    session.queue("GET", "/document/doc-1", FakeResponse(401, {"error": "bad"}))
+    with pytest.raises(SignNowAPIError) as excinfo:
+        make_client(api_key_credentials(), session, audit).get_document("doc-1")
+    assert excinfo.value.status == 401
+    assert len(session.calls) == 1
+
+
+def test_verify_token_uses_the_documented_endpoint(session, audit):
+    session.queue("GET", "/oauth2/token", FakeResponse(200, {"scope": "*"}))
+    make_client(api_key_credentials(), session, audit).verify_token()
+    assert session.calls[0]["url"].endswith("/oauth2/token")
+    assert session.calls[0]["method"] == "GET"
+
+
+def test_verify_token_names_the_rejected_credential(session, audit):
+    session.queue("GET", "/oauth2/token", FakeResponse(401, {"error": "bad"}))
+    with pytest.raises(SignNowAuthError, match="SIGNNOW_ACCESS_TOKEN"):
+        make_client(api_key_credentials(), session, audit).verify_token()
+
+
+def test_api_key_is_redacted_from_the_repr():
+    assert "key-123" not in repr(api_key_credentials())

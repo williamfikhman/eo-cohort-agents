@@ -54,6 +54,34 @@ Refresh uses the same URL with `grant_type=refresh_token` and `refresh_token`.
 Verified: `SignNowNodeSDK/src/api/auth/request/tokenPost.ts`,
 `refreshTokenPost.ts`.
 
+**The password grant needs a SignNow-native password**, which a Google sign-in
+account does not have. That is the account in use here, so the client's primary
+mode is an API key instead.
+
+### API key (the mode this project uses)
+
+The SignNow developer dashboard issues an API key. It is used directly as the
+bearer token on every request; no token exchange happens and no client id or
+secret is needed for ordinary calls.
+
+Verified: `SignNowNodeSDK/README.md` ("You can authenticate using either an API
+key: `new Sdk({ apiKey })`"), `src/core/sdk.ts` (the key is handed to the
+client as its bearer token) and `src/core/apiClient.ts` (`Bearer ${bearerToken}`).
+The README also notes the Basic token is only required for *generating* OAuth
+tokens and for a few specific endpoints, none of which this project calls.
+
+An API key cannot be refreshed. On a 401 the client raises immediately rather
+than retrying, and the message says to reissue the key in the dashboard.
+
+### Verify credentials
+
+`GET /oauth2/token` — Bearer. Returns the token's scope and expiry. Called once
+at the start of `prepare` so a bad key fails before anything is rendered or
+uploaded.
+
+Verified: `SignNowNodeSDK/src/api/auth/request/tokenGet.ts`; the .NET README
+lists it as "Verify Access Token".
+
 ### Upload with field extraction
 
 `POST /document/fieldextract` — Bearer, `multipart/form-data`. Returns `{"id": "..."}`.

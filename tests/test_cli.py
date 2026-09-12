@@ -60,6 +60,9 @@ def sent(monkeypatch):
             calls.append((document_id, invite))
             return {"status": "success"}
 
+        def verify_token(self):
+            return {}
+
     monkeypatch.setattr(cli_module, "SignNowClient", Recorder)
     monkeypatch.setattr(cli_module, "_credentials_for", lambda state: object())
     return calls

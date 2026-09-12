@@ -75,19 +75,38 @@ class SignNowAPIError(SignNowError):
 
 @dataclass(frozen=True)
 class Credentials:
-    client_id: str
-    client_secret: str = field(repr=False)
-    username: str
-    password: str = field(repr=False)
+    """Either an API key, or the four values the password grant needs.
+
+    An API key is what a Google-SSO account uses: SignNow's developer dashboard
+    issues it, and it goes straight into the Authorization header as a bearer
+    token (the official SDK's ``apiKey`` mode). The password grant needs a
+    SignNow-native password, which an SSO account does not have.
+    """
+
     base_url: str = PRODUCTION_BASE_URL
+    access_token: str | None = field(default=None, repr=False)
+    client_id: str | None = None
+    client_secret: str | None = field(default=None, repr=False)
+    username: str | None = None
+    password: str | None = field(default=None, repr=False)
 
     @property
     def is_sandbox(self) -> bool:
         return "api-eval" in self.base_url
 
+    @property
+    def uses_api_key(self) -> bool:
+        return bool(self.access_token)
+
     @classmethod
     def from_env(cls, environ: dict[str, str] | None = None) -> "Credentials":
         env = environ if environ is not None else os.environ
+        base_url = (env.get("SIGNNOW_BASE_URL") or PRODUCTION_BASE_URL).rstrip("/")
+
+        api_key = (env.get("SIGNNOW_ACCESS_TOKEN") or "").strip()
+        if api_key:
+            return cls(base_url=base_url, access_token=api_key)
+
         required = (
             "SIGNNOW_CLIENT_ID",
             "SIGNNOW_CLIENT_SECRET",
@@ -97,16 +116,20 @@ class Credentials:
         missing = [k for k in required if not (env.get(k) or "").strip()]
         if missing:
             raise SignNowConfigError(
-                "missing SignNow credentials: " + ", ".join(missing) + "\n"
-                "Set them in .env (see .env.example). .env is gitignored and its "
-                "values are never written to the audit log."
+                "no SignNow credentials found.\n"
+                "Set SIGNNOW_ACCESS_TOKEN (an API key from the SignNow developer "
+                "dashboard -- the right choice for a Google sign-in account), or all "
+                "four of SIGNNOW_CLIENT_ID, SIGNNOW_CLIENT_SECRET, SIGNNOW_USERNAME "
+                "and SIGNNOW_PASSWORD for the password grant.\n"
+                "Missing: " + ", ".join(missing) + ". See .env.example. .env is "
+                "gitignored and its values are never written to the audit log."
             )
         return cls(
+            base_url=base_url,
             client_id=env["SIGNNOW_CLIENT_ID"].strip(),
             client_secret=env["SIGNNOW_CLIENT_SECRET"].strip(),
             username=env["SIGNNOW_USERNAME"].strip(),
             password=env["SIGNNOW_PASSWORD"],
-            base_url=(env.get("SIGNNOW_BASE_URL") or PRODUCTION_BASE_URL).rstrip("/"),
         )
 
 
@@ -243,6 +266,8 @@ class SignNowClient:
 
     def _fetch_token(self, refresh: bool = False) -> Token:
         creds = self.credentials
+        if creds.uses_api_key:
+            raise SignNowAuthError("an API key is in use; there is no token to fetch")
         if refresh and self._token and self._token.refresh_token:
             data = {
                 "grant_type": "refresh_token",
@@ -285,9 +310,36 @@ class SignNowClient:
         )
 
     def token(self) -> str:
+        if self.credentials.uses_api_key:
+            return self.credentials.access_token  # type: ignore[return-value]
         if self._token is None or self._token.expired:
             self._token = self._fetch_token(refresh=bool(self._token))
         return self._token.access_token
+
+    def verify_token(self) -> dict[str, Any]:
+        """GET /oauth2/token -- confirm the credentials work before doing anything.
+
+        A read, so it runs on a dry run too. Fails fast with a message that says
+        which kind of credential was rejected.
+        """
+        try:
+            return self._request("GET", "/oauth2/token", action="oauth2.verify")
+        except SignNowAPIError as exc:
+            if exc.status in (401, 403):
+                raise SignNowAuthError(self._rejected_message()) from exc
+            raise
+
+    def _rejected_message(self) -> str:
+        if self.credentials.uses_api_key:
+            return (
+                "SignNow rejected SIGNNOW_ACCESS_TOKEN. API keys can be revoked or "
+                "regenerated in the SignNow developer dashboard; issue a new one and "
+                f"check it was created for {self.credentials.base_url}."
+            )
+        return (
+            "SignNow rejected the access token obtained with the password grant. "
+            "Check SIGNNOW_USERNAME and SIGNNOW_PASSWORD."
+        )
 
     # --------------------------------------------------------------- transport
 
@@ -332,8 +384,9 @@ class SignNowClient:
             )
 
         response = _send()
-        if response.status_code == 401:
-            # Token rejected -- refresh once and retry before giving up.
+        if response.status_code == 401 and not self.credentials.uses_api_key:
+            # Token rejected -- refresh once and retry before giving up. A static
+            # API key has nothing to refresh to, so it falls through to the error.
             self._token = None
             response = _send()
 

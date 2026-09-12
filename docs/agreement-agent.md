@@ -15,8 +15,22 @@ agreement clients           list configured clients
 
 ```bash
 pip install -e .
-cp .env.example .env          # then fill in your SignNow credentials
+cp .env.example .env
 ```
+
+Then put a SignNow **API key** in `.env` as `SIGNNOW_ACCESS_TOKEN`. The key
+comes from the SignNow developer dashboard and is used directly as the bearer
+token, so a Google sign-in account works without ever setting a SignNow
+password. Keys are per-environment: generate one for the sandbox
+(`api-eval.signnow.com`) to test with, and a separate one for production.
+
+The password grant (`SIGNNOW_CLIENT_ID`, `SIGNNOW_CLIENT_SECRET`,
+`SIGNNOW_USERNAME`, `SIGNNOW_PASSWORD`) is still supported for an account that
+has a native password, but it is not needed when an API key is set.
+
+`prepare` verifies the credentials against SignNow before rendering anything,
+so a bad or expired key is the first line of output, not a failure after the
+upload.
 
 LibreOffice does the PDF export and **the Writer component is required** —
 `libreoffice-core` on its own cannot read a .docx and fails with a misleading
