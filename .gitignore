@@ -3,3 +3,11 @@ __pycache__/
 .env
 *.csv
 .DS_Store
+
+# Rendered agreements and the documents they came from -- client data, never committed.
+build/
+# API call audit trail -- local record, not shared.
+logs/
+
+# Editable-install metadata
+*.egg-info/

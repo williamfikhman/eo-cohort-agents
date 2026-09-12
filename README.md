@@ -49,3 +49,11 @@ is a tomorrow problem.
 | Backfill from the idea sheet | `python runner/ingest_sheet.py ideas.csv` (see `runner/README.md`) |
 
 Needs two repo secrets: `ANTHROPIC_API_KEY` and `RESEND_API_KEY`. Both are already set.
+
+## The agreement agent
+
+Separate from the cohort agents above, `agreement` prepares CMO Amazon Services
+Agreements in SignNow and stops for approval before anything is sent. See
+[docs/agreement-agent.md](docs/agreement-agent.md), and
+[docs/signnow-api-notes.md](docs/signnow-api-notes.md) for the verified API
+surface it is written against.

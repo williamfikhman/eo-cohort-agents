@@ -1,0 +1,30 @@
+# Sandbox test client. Safe to run `agreement prepare acme-sandbox` against.
+# signatory_email should be an address you control.
+
+company_legal_name: "Acme Sandbox Brands, LLC"
+entity_type: "LLC"
+state_of_incorporation: "Delaware"
+company_address: "100 Test Street, Suite 200, Wilmington, DE 19801"
+
+signatory_name: "Jordan Rivera"
+signatory_title: "Chief Executive Officer"
+signatory_email: "william@marketplaceofficer.com"
+
+effective_date: "January 5, 2026"
+
+monthly_fee: "$8,500 per month"
+commission_pct: "4%"
+commission_terms: >-
+  Commission is calculated on net Amazon sales above a baseline of $250,000 per
+  calendar month, invoiced monthly in arrears alongside the retainer.
+
+initial_term_months: 12
+
+schedule_b_deliverables:
+  - "Weekly Amazon performance reporting with month-over-month trend analysis"
+  - "Listing optimisation for up to 50 ASINs, including copy, imagery and A+ content"
+  - "Advertising management across Sponsored Products, Brands and Display"
+  - "Monthly strategy call with the CMO fractional lead"
+  - "Buy Box and unauthorised-seller monitoring with escalation support"
+
+trademark_exhibit: "TBD"

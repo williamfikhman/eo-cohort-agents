@@ -1,0 +1,25 @@
+[project]
+name = "cmo-agreement-agent"
+version = "1.0.0"
+description = "Prepare and send CMO Amazon Services Agreements through SignNow"
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.1",
+    "docxtpl>=0.16",
+    "python-docx>=1.1",
+    "python-dotenv>=1.0",
+    "pdfminer.six>=20221105",
+    "PyYAML>=6.0",
+    "requests>=2.31",
+]
+
+[project.scripts]
+agreement = "cli:cli"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+py-modules = ["cli", "config", "fields", "render", "signnow"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
