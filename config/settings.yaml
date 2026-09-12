@@ -1,0 +1,113 @@
+# AR follow-up agent — global settings.
+#
+# Angie maintains this file and config/clients.yaml. No code changes needed.
+# Everything here is read at the start of every run; a bad value fails the run
+# loudly (`python -m ar_followup validate-config`) rather than sending anything.
+
+identities:
+  # Digest goes here. This is the only address the agent emails without approval.
+  digest_to: william@marketplaceofficer.com
+  # Reminders are sent from this Gmail mailbox so the thread history lives in Gmail.
+  billing_from: "Chief Marketplace Officer Billing <billing@marketplaceofficer.com>"
+  # Reply-to on client reminders.
+  billing_reply_to: billing@marketplaceofficer.com
+  # cc'd from the +10 stage onward.
+  escalation_cc: angie@marketplaceofficer.com
+
+policy:
+  # Hard stops. The code refuses to start if either of these is false — they are
+  # here to be read, not to be switched off.
+  require_approval_before_client_email: true
+  allow_qbo_writes: false
+  # Never auto-apply a payment or a deposit to an invoice. Proposed matches go in
+  # the digest for a human. Deposit-to-invoice matching has double-payment risk.
+  allow_payment_application: false
+  # Reminders only go out on these weekdays (0 = Monday). No weekend dunning.
+  send_weekdays: [0, 1, 2, 3, 4]
+  # An approval expires if it is not acted on within this many hours. Stale
+  # approvals are re-proposed in the next digest instead of firing late.
+  approval_ttl_hours: 36
+
+defaults:
+  # Net 15 unless a client's contract in clients.yaml says otherwise.
+  payment_terms_days: 15
+  currency: USD
+
+cadence:
+  # days_past_due is counted from the invoice due date, not the invoice date.
+  # An invoice is only ever eligible for the highest stage it has reached and
+  # not yet been sent, so a run that misses a day does not double-send.
+  stages:
+    - id: friendly
+      days_past_due: 3
+      template: friendly
+      cc: []
+      sends_email: true
+      label: "Friendly reminder"
+    - id: firm
+      days_past_due: 10
+      template: firm
+      cc: [angie@marketplaceofficer.com]
+      sends_email: true
+      label: "Firmer follow-up (cc Angie)"
+    - id: escalation
+      days_past_due: 21
+      template: escalation
+      cc: [angie@marketplaceofficer.com]
+      # Stage 3 stops automated email entirely. It raises a call task for Angie
+      # or William and the invoice goes quiet from the agent's side.
+      sends_email: false
+      label: "Escalation — personal call, automated email stops"
+
+rules:
+  # A client carrying this many open invoices across different months is a silent
+  # churn / collection risk. Automation is skipped entirely; a human calls.
+  # Seen with Labeldaddy, Silko/CocoChoco and BeLAGU: silent churn hides in
+  # stacked AR, and a dunning email makes it worse.
+  stacked_ar_open_invoice_threshold: 2
+  stacked_ar_requires_distinct_months: true
+
+  # Alert this far ahead of a contract step-down or sunset so billing changes
+  # before the invoice goes out, not after.
+  contract_change_lookahead_days: 30
+
+  # Pre-send verification window: how far back to sweep payments and bank-feed
+  # deposits when looking for money that arrived but was never applied.
+  unapplied_payment_lookback_days: 21
+  # A deposit or payment within this much of the invoice balance counts as a
+  # candidate match. Wide on purpose — a near miss is a review item, not a send.
+  unapplied_match_tolerance_pct: 2.0
+  unapplied_match_tolerance_abs: 25.00
+
+  # A payment that leaves a balance below this is a short pay, not a real
+  # outstanding invoice. Short pays go to the review queue, never to a reminder.
+  short_pay_review_floor: 50.00
+
+  # Ignore invoice balances at or under this (rounding dust).
+  minimum_reminder_balance: 5.00
+
+  # Bank accounts whose deposits are swept for unapplied-payment candidates.
+  # Matched against the QBO deposit-to account name, case-insensitive substring.
+  bank_feed_accounts:
+    - Chase
+    - QuickBooks Payments
+
+invoice_lines:
+  # Used to validate an invoice against the client's contract terms. Matched
+  # case-insensitively against the line's item name and description.
+  flat_fee_patterns:
+    - "retainer"
+    - "monthly fee"
+    - "flat fee"
+    - "management fee"
+  commission_patterns:
+    - "commission"
+    - "% of sales"
+    - "percent of sales"
+    - "rev share"
+
+digest:
+  subject_prefix: "AR digest"
+  # Keep it scannable on a phone: truncate long lists and say what was cut.
+  max_rows_per_section: 25
+  timezone: America/Los_Angeles

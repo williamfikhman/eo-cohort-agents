@@ -1,0 +1,5 @@
+# Shared by runner/ and ar_followup/.
+anthropic
+markdown
+PyYAML
+requests

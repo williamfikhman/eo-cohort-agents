@@ -49,3 +49,18 @@ is a tomorrow problem.
 | Backfill from the idea sheet | `python runner/ingest_sheet.py ideas.csv` (see `runner/README.md`) |
 
 Needs two repo secrets: `ANTHROPIC_API_KEY` and `RESEND_API_KEY`. Both are already set.
+
+## The one that isn't a Markdown file
+
+`ar_followup/` is the AR follow-up agent for Chief Marketplace Officer. It does not
+live in `agents/` and it is not a RAFT: it holds OAuth credentials, talks to the
+QuickBooks Online and Gmail APIs directly, and has an approval gate between what it
+proposes and what a client ever sees. The runner would only hand it to a web search,
+which is not what it does.
+
+It runs on its own cron in `.github/workflows/ar-followup.yml` — a morning scan that
+emails William a digest of proposed reminders and flagged invoices, then hourly
+passes that send only what he approved by reply. It never writes to QuickBooks.
+Setup, cadence and the config Angie maintains are in
+[`ar_followup/README.md`](ar_followup/README.md); a sample digest is in
+[`docs/sample-digest.txt`](docs/sample-digest.txt).
