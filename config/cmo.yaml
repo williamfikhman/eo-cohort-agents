@@ -1,18 +1,16 @@
-# The constant CMO side of every agreement. Set once.
-# Anything marked TODO must be filled in before a real agreement goes out --
-# render refuses to build while a TODO remains.
+# The constant CMO side of every agreement. Values taken from the executed
+# Aminomega and Elleebana agreements.
 
 legal_name: "Chief Marketplace Officer, Inc."
-entity_type: "TODO: corporation or LLC"
-state_of_incorporation: "TODO: e.g. Delaware"
-address: "TODO: CMO principal place of business"
+address: "4449 Nogales Drive, Tarzana, CA 91356"
 
 # Pre-filled signature block. Nothing here becomes a SignNow field -- the client
-# never signs on CMO's behalf.
+# never signs on CMO's behalf. "today" dates the block when `prepare` runs, as
+# in the executed agreements; replace with a literal date to pin it.
 signatory_name: "William Fikhman"
 signatory_title: "CEO"
-signature_date: "TODO: e.g. January 5, 2026, or set per-agreement"
-signature_mark: "/s/ William Fikhman"
+signature_date: today
+signature_mark: "William Fikhman"
 
 # The From address on the signing invite. Must be the SignNow account's own
 # address or one it is authorised to send as.

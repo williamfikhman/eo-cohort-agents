@@ -1,0 +1,35 @@
+# Transcribed from the executed revised Aminomega agreement (September 14, 2026).
+# signatory_email was not in the PDF -- fill it in before running prepare;
+# validation refuses an empty value.
+
+company_legal_name: "Aminomega, LLC"
+entity_type: "LLC"
+state_of_incorporation: "Pennsylvania"
+company_address: "794 Sunrise Blvd., Mt. Bethel, PA 18343"
+
+signatory_name: "William Sandnes"
+signatory_title: "Owner"
+signatory_email: ""
+
+effective_date: "September 14, 2026"
+
+monthly_fee: "$2,300"
+commission_pct: "10%"
+commission_terms: >-
+  The monthly service fees for the initial six (6) month term, totaling $13,800,
+  shall be paid in advance upon execution of this Agreement. The commission shall
+  be invoiced on the first business day of each month for the preceding month’s
+  sales, and payment of each commission invoice is due within fourteen (14)
+  business days of the Company’s receipt of that invoice.
+
+initial_term_months: 6
+
+schedule_b_deliverables:
+  - "Manage USA Seller Central Account - Oversee replenishment of USA Seller Central inventory"
+  - "Develop product optimization priority list and roadmap"
+  - "Optimize product pages – Brand Name, Title, Images, Bullets, A+ Content, Keywords"
+  - "Daily/Weekly/Monthly general management of the Seller Central Account"
+  - "Setup of any plug-in software – i.e., repricing, review improvement, analytics"
+  - "Bi-Weekly status meeting with clear actionable to-do’s for both sides"
+
+trademark_exhibit: "TBD"

@@ -1,0 +1,31 @@
+# Transcribed from the executed Elleebana agreement (September 14, 2026).
+# signatory_email was not in the PDF -- fill it in before running prepare;
+# validation refuses an empty value.
+
+company_legal_name: "Ex Import USA Inc. DBA Elleebana"
+entity_type: "Corporation"
+state_of_incorporation: "Illinois"
+company_address: "2400 Hassell Road, Hoffman Estates, IL 60169"
+
+signatory_name: "Otto Mitter"
+signatory_title: "Owner"
+signatory_email: ""
+
+effective_date: "September 14, 2026"
+
+monthly_fee: "$3,500"
+commission_pct: "8%"
+commission_terms: >-
+  The service fee and commission are due on the first business day of each month.
+
+initial_term_months: 6
+
+schedule_b_deliverables:
+  - "Manage USA Seller Central Account - Oversee replenishment of USA Seller Central inventory"
+  - "Develop product optimization priority list and roadmap"
+  - "Optimize product pages – Brand Name, Title, Images, Bullets, A+ Content, Keywords"
+  - "Daily/Weekly/Monthly general management of the Seller Central Account"
+  - "Setup of any plug-in software – i.e., repricing, review improvement, analytics"
+  - "Bi-Weekly status meeting with clear actionable to-do’s for both sides"
+
+trademark_exhibit: "TBD"

@@ -70,18 +70,21 @@ letting reads through, so a dry run tells you something true about the account.
 
 ## The template
 
-`templates/amazon_services_agreement.docx` is a **scaffold**. The executed Word
-agreement was not in the repository, so it has the right structure — every
-variable, all five schedules, both signature blocks, the SignNow anchors — with
-`[CLAUSE TEXT PENDING ...]` where your clause bodies belong.
+`templates/amazon_services_agreement.docx` is generated from
+`tools/build_template.py`, which carries the agreement text transcribed from the
+executed revised Aminomega agreement — the current form of the contract. The
+three executed agreements (two Aminomega revisions and Elleebana) were diffed
+against each other to confirm that everything outside the per-client variables
+is constant.
 
-Replacing it is a paste job. Open it, paste the real text over each marker, leave
-the `{{ ... }}` placeholders where they sit, save. Nothing carrying a PENDING
-marker will render without `--allow-scaffold`, so the scaffold cannot reach a
-client by accident.
+To change contract language, edit the text in `tools/build_template.py` and run
+it. Editing the .docx directly works too, but the next regeneration overwrites
+it, so the script is the source of truth.
 
-`python tools/build_template.py` regenerates the scaffold from scratch, which
-overwrites your edits — only run it if you want to start over.
+`clients/aminomega.yaml` and `clients/elleebana.yaml` are transcribed from the
+executed agreements and double as regression checks: rendering them reproduces
+the executed text. Their `signatory_email` is blank because the PDFs did not
+contain one, and validation refuses to run until you fill it in.
 
 ### Why the tags are written the way they are
 

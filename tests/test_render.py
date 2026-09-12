@@ -79,15 +79,51 @@ def test_no_jinja_syntax_survives_into_the_document(
         assert name in {f.tag_name for f in CLIENT_FIELDS}, name
 
 
-def test_scaffold_template_is_refused_by_default(
-    client_values, cmo_values, tmp_path, template_path
-):
-    """The generated scaffold must not be able to reach a client."""
-    with pytest.raises(RenderError, match="still the generated scaffold"):
-        render(
-            make_config(client_values, tmp_path), cmo_values,
-            template_path=template_path, build_dir=tmp_path / "build",
-        )
+def test_template_carries_no_pending_marker(template_path):
+    """The real agreement text is in; a PENDING marker would mean it regressed."""
+    from docx import Document as ReadDocument
+    from render import SCAFFOLD_MARKER
+
+    doc = ReadDocument(str(template_path))
+    assert SCAFFOLD_MARKER not in "\n".join(p.text for p in doc.paragraphs)
+
+
+def test_executed_aminomega_agreement_is_reproduced(cmo_values, tmp_path, template_path):
+    """Rendering the transcribed Aminomega config must give back the executed text."""
+    import yaml
+    from pdfminer.high_level import extract_text
+    from tests.conftest import REPO_ROOT
+
+    values = yaml.safe_load((REPO_ROOT / "clients" / "aminomega.yaml").read_text())
+    values["signatory_email"] = "signer@example.com"   # not in the executed PDF
+    result = render(
+        make_config(values, tmp_path, slug="aminomega"), cmo_values,
+        template_path=template_path, build_dir=tmp_path / "build",
+    )
+    text = " ".join(extract_text(str(result.pdf_path)).split())
+
+    assert result.page_count == 8, "executed Aminomega agreement is 8 pages"
+    assert ("and Aminomega, LLC, a Pennsylvania limited liability company, with address "
+            "of 794 Sunrise Blvd., Mt. Bethel, PA 18343 (“Company”)") in text
+    assert ("Company will pay CMO a monthly service fee of $2,300 plus a commission "
+            "equal to 10% of monthly Gross Amazon Sales.") in text
+    assert "totaling $13,800, shall be paid in advance" in text
+    assert "continues for an initial term of 6 months" in text
+    assert "6. Bi-Weekly status meeting" in text          # Schedule B numbering
+    assert "Name: William Fikhman Title: CEO" in text     # CMO block pre-filled
+
+
+def test_entity_phrasing_follows_state_and_type(tmp_path):
+    """"a Pennsylvania limited liability company" vs "an Illinois corporation"."""
+    from conftest import VALID_CLIENT, VALID_CMO
+
+    llc = dict(VALID_CLIENT, entity_type="LLC", state_of_incorporation="Pennsylvania")
+    ctx = make_config(llc, tmp_path).context(VALID_CMO)
+    assert (ctx["entity_article"], ctx["entity_type_long"]) == ("a", "limited liability company")
+
+    corp = dict(VALID_CLIENT, entity_type="Corporation", state_of_incorporation="Illinois")
+    ctx = make_config(corp, tmp_path).context(VALID_CMO)
+    assert (ctx["entity_article"], ctx["entity_type_long"]) == ("an", "corporation")
 
 
 def test_todo_in_cmo_config_blocks_the_build(

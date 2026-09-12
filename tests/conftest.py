@@ -26,9 +26,7 @@ VALID_CLIENT = {
 
 VALID_CMO = {
     "legal_name": "Chief Marketplace Officer, Inc.",
-    "entity_type": "corporation",
-    "state_of_incorporation": "Delaware",
-    "address": "123 Example Ave, Los Angeles, CA 90001",
+    "address": "4449 Nogales Drive, Tarzana, CA 91356",
     "signatory_name": "William Fikhman",
     "signatory_title": "CEO",
     "signature_date": "January 5, 2026",

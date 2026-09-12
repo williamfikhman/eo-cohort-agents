@@ -39,6 +39,7 @@ REQUIRED_STRING_VARS = (
 REQUIRED_LIST_VARS = ("schedule_b_deliverables",)
 
 ENTITY_TYPES = ("LLC", "Corporation")
+ENTITY_TYPE_LONG = {"LLC": "limited liability company", "Corporation": "corporation"}
 
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _SLUG = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -66,8 +67,16 @@ class ClientConfig:
         return self.values["company_legal_name"]
 
     def context(self, cmo: dict[str, Any]) -> dict[str, Any]:
-        """Template context: client values plus the constant CMO block."""
+        """Template context: client values, derived phrasing, and the CMO block."""
         ctx = dict(self.values)
+        # The agreement reads "a Pennsylvania limited liability company" or
+        # "an Illinois corporation": the article follows the state, the long
+        # form follows the entity type.
+        entity = self.values.get("entity_type")
+        if entity in ENTITY_TYPE_LONG:
+            ctx["entity_type_long"] = ENTITY_TYPE_LONG[entity]
+        state = str(self.values.get("state_of_incorporation") or "").strip()
+        ctx["entity_article"] = "an" if state[:1].lower() in "aeiou" else "a"
         ctx.update({f"cmo_{k}": v for k, v in cmo.items()})
         return ctx
 
@@ -179,8 +188,6 @@ def load_cmo(path: Path | None = None) -> dict[str, Any]:
 
     required = (
         "legal_name",
-        "entity_type",
-        "state_of_incorporation",
         "address",
         "signatory_name",
         "signatory_title",
@@ -193,6 +200,10 @@ def load_cmo(path: Path | None = None) -> dict[str, Any]:
         raise ConfigError(
             f"{cmo_path} is missing: {', '.join(missing)}"
         )
+    if str(values["signature_date"]).strip().lower() == "today":
+        # The CMO block is dated when the agreement is prepared, matching the
+        # executed agreements, where the CMO date is the preparation date.
+        values["signature_date"] = _dt.date.today().strftime("%B %-d, %Y")
     return values
 
 
