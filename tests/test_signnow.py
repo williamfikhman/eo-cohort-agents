@@ -325,3 +325,54 @@ def test_verify_token_names_the_rejected_credential(session, audit):
 
 def test_api_key_is_redacted_from_the_repr():
     assert "key-123" not in repr(api_key_credentials())
+
+
+# ------------------------------------------------------------ unreachable
+
+
+class DeadSession:
+    """Every request fails at the transport layer."""
+
+    def __init__(self, exc):
+        self.exc = exc
+        self.calls = 0
+
+    def post(self, *a, **k):
+        return self.request("POST", *a, **k)
+
+    def request(self, *a, **k):
+        self.calls += 1
+        raise self.exc
+
+
+def test_a_dead_network_is_a_clean_error_not_a_traceback(audit):
+    import requests
+    from signnow import SignNowConnectionError
+
+    dead = DeadSession(requests.exceptions.ProxyError("Tunnel connection failed: 403"))
+    client = SignNowClient(api_key_credentials(), audit=audit, session=dead)
+    with pytest.raises(SignNowConnectionError, match="could not reach https://api-eval"):
+        client.verify_token()
+    assert dead.calls == 1
+
+
+def test_a_dead_network_during_the_password_grant_is_also_clean(credentials, audit):
+    import requests
+    from signnow import SignNowConnectionError
+
+    dead = DeadSession(requests.exceptions.ConnectionError("refused"))
+    client = SignNowClient(credentials, audit=audit, session=dead)
+    with pytest.raises(SignNowConnectionError, match="Nothing was changed"):
+        client.token()
+
+
+def test_an_unreachable_call_is_still_audited(audit):
+    import requests
+
+    dead = DeadSession(requests.exceptions.Timeout("slow"))
+    client = SignNowClient(api_key_credentials(), audit=audit, session=dead)
+    with pytest.raises(Exception):
+        client.get_document("doc-1")
+    line = json.loads(audit.path.read_text().splitlines()[-1])
+    assert line["status"] == "unreachable"
+    assert line["document_id"] == "doc-1"

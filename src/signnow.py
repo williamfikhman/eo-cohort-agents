@@ -59,6 +59,10 @@ class SignNowAuthError(SignNowError):
     """The account could not be authenticated."""
 
 
+class SignNowConnectionError(SignNowError):
+    """SignNow could not be reached at all: DNS, proxy, TLS, timeout."""
+
+
 class SignNowAPIError(SignNowError):
     """SignNow returned an error response."""
 
@@ -145,6 +149,14 @@ class Token:
 
 
 # ---------------------------------------------------------------------- audit log
+
+
+def _unreachable(host: str, exc: Exception) -> SignNowConnectionError:
+    return SignNowConnectionError(
+        f"could not reach {host}: {exc.__class__.__name__}: {exc}\n"
+        "Check the network, SIGNNOW_BASE_URL, and any proxy in the way. "
+        "Nothing was changed in SignNow."
+    )
 
 
 def _redact(value: Any) -> Any:
@@ -282,12 +294,15 @@ class SignNowClient:
                 "scope": "*",
             }
 
-        response = self._session.post(
-            f"{creds.base_url}/oauth2/token",
-            data=data,
-            auth=(creds.client_id, creds.client_secret),
-            timeout=self.timeout,
-        )
+        try:
+            response = self._session.post(
+                f"{creds.base_url}/oauth2/token",
+                data=data,
+                auth=(creds.client_id, creds.client_secret),
+                timeout=self.timeout,
+            )
+        except requests.RequestException as exc:
+            raise _unreachable(creds.base_url, exc) from exc
         self.audit.record(
             "oauth2.token",
             method="POST",
@@ -383,12 +398,20 @@ class SignNowClient:
                 timeout=self.timeout,
             )
 
-        response = _send()
-        if response.status_code == 401 and not self.credentials.uses_api_key:
-            # Token rejected -- refresh once and retry before giving up. A static
-            # API key has nothing to refresh to, so it falls through to the error.
-            self._token = None
+        try:
             response = _send()
+            if response.status_code == 401 and not self.credentials.uses_api_key:
+                # Token rejected -- refresh once and retry before giving up. A
+                # static API key has nothing to refresh to, so it falls through
+                # to the error.
+                self._token = None
+                response = _send()
+        except requests.RequestException as exc:
+            self.audit.record(
+                label, method=method.upper(), path=path, document_id=document_id,
+                status="unreachable", detail={"error": exc.__class__.__name__},
+            )
+            raise _unreachable(self.credentials.base_url, exc) from exc
 
         self.audit.record(
             label,
