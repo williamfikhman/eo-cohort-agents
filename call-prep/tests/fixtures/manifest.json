@@ -1,0 +1,9 @@
+{
+  "https://acmenaturals.com": "shopify-home.html",
+  "https://acmenaturals.com/pages/where-to-buy": "wtb.html",
+  "https://acmenaturals.com/products.json?limit=50": "shopify-products.json",
+  "https://www.amazon.com/s?k=Acme+Naturals": "amazon-search.html",
+  "https://www.amazon.com/dp/B0ACME0001": "amazon-product-3p.html",
+  "https://www.amazon.com/dp/B0ACME0002": "amazon-product-1p.html",
+  "https://www.amazon.com/gp/product/ajax/ref=dp_aod_NEW_mbc?asin=B0ACME0001&pc=dp&experienceId=aodAjaxMain": "amazon-aod.html"
+}

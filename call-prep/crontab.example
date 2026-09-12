@@ -1,0 +1,19 @@
+# Daily Call Prep — crontab entries. Install with:  crontab -e  (paste, adjust the path)
+#
+# cron has no timezone field. On a Mac whose system clock is Pacific this fires at
+# 6:00 AM PT year-round. On a UTC server use 13:00 UTC (PDT) / 14:00 UTC (PST) and
+# move it twice a year, or run it from a machine set to America/Los_Angeles.
+#
+# The wrapper needs the same env the interactive shell has (PATH with node/npx, uvx,
+# python3 and claude; HUBSPOT_ACCESS_TOKEN; the Google OAuth file paths). Source a
+# file that exports them rather than pasting secrets here.
+
+SHELL=/bin/bash
+CALL_PREP=/Users/william/eo-cohort-agents/call-prep
+
+# 6:00 AM PT, weekdays: full brief
+0 6 * * 1-5   cd $CALL_PREP && source ~/.config/call-prep/env && ./bin/call-prep >> logs/cron.log 2>&1
+
+# 10:00 AM PT, weekdays: supplement covering meetings added since the 6 AM run.
+# Sends nothing if nothing new was added. Comment out if you don't want it.
+0 10 * * 1-5  cd $CALL_PREP && source ~/.config/call-prep/env && ./bin/call-prep --supplement >> logs/cron.log 2>&1

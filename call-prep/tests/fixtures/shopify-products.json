@@ -1,0 +1,6 @@
+{"products":[
+ {"title":"Bakuchiol Retinol Serum","handle":"bakuchiol-retinol-serum","variants":[{"price":"89.00","available":true}]},
+ {"title":"Gentle Milky Cleanser","handle":"soothing-gentle-milky-cleanser","variants":[{"price":"38.00","available":true},{"price":"64.00","available":false}]},
+ {"title":"Gift Card","handle":"gift-card","variants":[]},
+ {"title":"Clarify and Brighten Peeling Mask","handle":"clarify-and-brighten-peeling-mask","variants":[{"price":"34.00","available":true}]}
+]}

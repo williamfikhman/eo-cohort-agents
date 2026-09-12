@@ -1,0 +1,23 @@
+{"date":"2026-09-14","timezone":"America/Los_Angeles","mode":"full",
+ "summary":["3 external calls. Laleva (2:00) matters most: follow-up with partners on a $3k/mo proposal.","Strongest hook: Acme-style price gap — $89 serum on DTC, $61 on Amazon via a reseller.","Watch: LifePharm no-showed twice; KNJ booked two slots."],
+ "meetings":[
+  {"start":"14:00","end":"14:30","duration_min":30,"priority":1,"company":"Laleva Natural","title":"Laleva & CMO","meeting_link":"https://us02web.zoom.us/j/8185908611","booking_link":"HubSpot meeting link (wfikhman)",
+   "attendees":[{"name":"Sinem Taylor","title":"Co-Founder","email":"sinemtaylor@lalevanatural.com","linkedin":null}],
+   "hook":["Amazon listings are inactive; contractor in Bangladesh building the store (per 9/10 call).","Shopify site with 10–15 SKUs; no Amazon Storefront found."],
+   "status":"On Amazon in name only: listings inactive, no Storefront.",
+   "links":{"amazon_search":"https://www.amazon.com/s?k=Laleva+Natural","storefront":null,"site":"https://lalevanatural.com","hubspot_contact":"https://app.hubspot.com/contacts/22483434/record/0-1/537864439526","hubspot_deal":"https://app.hubspot.com/contacts/22483434/record/0-3/343555657461","other":[]},
+   "questions":["Who owns the Seller Central login today?","What did the contractor deliver so far?","Is the family aligned on the $3k/mo number?"],
+   "objections":[{"objection":"Need partner sign-off","response":"Offer the lower-fee/higher-commission plan to de-risk month 1."}],
+   "history":"Discovery 9/10; deck + 90-day process sent same day. Deal stage: Follow Up Scheduled.",
+   "sources":[{"label":"HubSpot note 9/10","url":"https://app.hubspot.com/contacts/22483434/record/0-1/537864439526"}],
+   "unavailable":["amazon"]},
+  {"start":"08:45","end":"09:00","duration_min":15,"priority":2,"company":"KNJ","title":"KNJ & William","meeting_link":"https://us02web.zoom.us/j/8185908611","also_at":["10:15"],
+   "attendees":[{"name":"Yuri Azmitia","title":null,"email":"nathankayla.salinas@gmail.com","linkedin":null}],
+   "hook":["No company site or Amazon presence found for 'KNJ' — open by asking what they sell."],
+   "status":"Amazon presence unverified (brand name too generic to search).",
+   "links":{"amazon_search":"https://www.amazon.com/s?k=KNJ","storefront":null,"site":null,"hubspot_contact":"https://app.hubspot.com/contacts/22483434/record/0-1/540824780476","hubspot_deal":"https://app.hubspot.com/contacts/22483434/record/0-3/344051112653","other":[]},
+   "questions":["What is the product and where is it sold today?","Do you have a Seller Central account?","What made you book the call?"],
+   "objections":[],"history":null,"sources":[],"unavailable":["amazon","dtc"]}
+ ],
+ "internal":["11:00 Sales Meeting: Will & Angie","11:30 Leadership Meeting"],
+ "failures":["amazon: search page blocked (bot check) for Laleva Natural"]}

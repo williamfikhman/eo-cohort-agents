@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# Daily Call Prep — headless runner.
+#
+#   ./bin/call-prep                          # full brief for today (PT), sends email
+#   ./bin/call-prep --date 2026-09-14        # any day
+#   ./bin/call-prep --no-send                # build out/<date>.html but do not email
+#   ./bin/call-prep --step 1                 # calendar read + filter, console only
+#   ./bin/call-prep --step 2                 # + HubSpot enrichment, console only
+#   ./bin/call-prep --step 3                 # + Amazon/DTC research, console only
+#   ./bin/call-prep --step 3 --brand "Dr. Squatch" --site drsquatch.com   # research one brand, no Claude
+#   ./bin/call-prep --supplement             # only meetings added since the morning run
+#
+# Writes logs/<date>.run.json (claude's JSON envelope: cost, turns, errors) and the
+# agent itself writes logs/<date>.json (inputs, sources hit, failures).
+set -uo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$HERE"
+
+DATE=""; STEP="all"; SEND="true"; MODE="full"; BRAND=""; SITE=""; EXTRA=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --date) DATE="$2"; shift 2 ;;
+    --step) STEP="$2"; shift 2 ;;
+    --no-send) SEND="false"; shift ;;
+    --supplement) MODE="supplement"; shift ;;
+    --brand) BRAND="$2"; shift 2 ;;
+    --site) SITE="$2"; shift 2 ;;
+    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
+    *) EXTRA+=("$1"); shift ;;
+  esac
+done
+
+[[ -z "$DATE" ]] && DATE="$(TZ=America/Los_Angeles date +%F)"
+if ! [[ "$DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then echo "bad --date: $DATE" >&2; exit 2; fi
+mkdir -p logs out
+
+# Step 3 standalone research needs no Claude at all.
+if [[ "$STEP" == "3" && -n "$BRAND" ]]; then
+  exec python3 bin/research.py --brand "$BRAND" ${SITE:+--site "$SITE"} "${EXTRA[@]}"
+fi
+
+command -v claude >/dev/null || { echo "claude CLI not on PATH" >&2; exit 2; }
+
+LOCK="logs/.lock"
+if ! mkdir "$LOCK" 2>/dev/null; then echo "another run is in progress ($LOCK exists)" >&2; exit 3; fi
+trap 'rmdir "$LOCK" 2>/dev/null' EXIT
+
+cat > run.json <<JSON
+{"date": "$DATE", "mode": "$MODE", "step": "$STEP", "send": $SEND, "started_at": "$(date -u +%FT%TZ)"}
+JSON
+
+case "$STEP" in
+  1) PROMPT_FILE="prompts/01-calendar.md" ;;
+  2) PROMPT_FILE="prompts/02-hubspot.md" ;;
+  3) PROMPT_FILE="prompts/03-research.md" ;;
+  4) PROMPT_FILE="prompts/04-brief.md" ;;
+  all) PROMPT_FILE="prep-brief.md" ;;
+  *) echo "bad --step: $STEP" >&2; exit 2 ;;
+esac
+
+# Read-only everywhere except gmail send. HubSpot/Calendar write tools are simply not
+# in this list, so a headless run cannot call them even if the model tried.
+ALLOWED=(
+  "Read" "Write" "Glob" "Grep" "WebSearch" "WebFetch"
+  "Bash(python3 bin/*)" "Bash(python3 ./bin/*)" "Bash(mkdir *)" "Bash(cat *)" "Bash(ls *)" "Bash(date *)"
+  "mcp__google-calendar__list-events" "mcp__google-calendar__get-event" "mcp__google-calendar__search-events"
+  "mcp__google-calendar__list-calendars" "mcp__google-calendar__get-current-time"
+  "mcp__hubspot__hubspot-search-objects" "mcp__hubspot__hubspot-batch-read-objects"
+  "mcp__hubspot__hubspot-list-associations" "mcp__hubspot__hubspot-get-association-definitions"
+  "mcp__hubspot__hubspot-list-objects" "mcp__hubspot__hubspot-get-engagement"
+  "mcp__hubspot__hubspot-get-user-details" "mcp__hubspot__hubspot-get-schemas"
+  "mcp__fetch__fetch"
+)
+[[ "$SEND" == "true" && ( "$STEP" == "all" || "$STEP" == "4" ) ]] && ALLOWED+=("mcp__gmail__send_email")
+
+MODEL_ARGS=(); [[ -n "${CALL_PREP_MODEL:-}" ]] && MODEL_ARGS=(--model "$CALL_PREP_MODEL")
+
+RUN_LOG="logs/${DATE}.run.json"; [[ "$MODE" == "supplement" ]] && RUN_LOG="logs/${DATE}.supplement.run.json"
+echo "[call-prep] $DATE mode=$MODE step=$STEP send=$SEND prompt=$PROMPT_FILE" >&2
+
+set +e
+claude -p "$(cat "$PROMPT_FILE")" \
+  --output-format json \
+  --mcp-config .mcp.json --strict-mcp-config \
+  --allowedTools "${ALLOWED[@]}" \
+  --max-turns "${CALL_PREP_MAX_TURNS:-120}" \
+  "${MODEL_ARGS[@]}" > "$RUN_LOG"
+RC=$?
+set -e
+
+# Surface the agent's final text on the console (this is what you read for steps 1-3).
+python3 - "$RUN_LOG" <<'PY'
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+except Exception as e:
+    print(f"[call-prep] could not parse {sys.argv[1]}: {e}"); sys.exit(0)
+print(d.get("result", "") if isinstance(d, dict) else d)
+if isinstance(d, dict):
+    print(f"\n[call-prep] turns={d.get('num_turns')} cost=${d.get('total_cost_usd', 0):.2f} duration={d.get('duration_ms', 0)/1000:.0f}s is_error={d.get('is_error')}", file=sys.stderr)
+PY
+exit $RC

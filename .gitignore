@@ -3,3 +3,10 @@ __pycache__/
 .env
 *.csv
 .DS_Store
+
+# call-prep runtime artifacts
+call-prep/logs/*
+!call-prep/logs/.gitkeep
+call-prep/out/*
+!call-prep/out/.gitkeep
+call-prep/run.json
