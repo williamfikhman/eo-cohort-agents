@@ -49,3 +49,10 @@ is a tomorrow problem.
 | Backfill from the idea sheet | `python runner/ingest_sheet.py ideas.csv` (see `runner/README.md`) |
 
 Needs two repo secrets: `ANTHROPIC_API_KEY` and `RESEND_API_KEY`. Both are already set.
+
+## Also in this repo: `cmo-proposal-agent/`
+
+A separate, self-contained Claude Code project (William's). It is not a RAFT agent
+and the runner ignores it: it watches a calendar for proposal calls, pulls the
+prospect from HubSpot and the call notes from Granola, and renders a branded
+proposal as .docx and .pdf. Setup is in `cmo-proposal-agent/README.md`.

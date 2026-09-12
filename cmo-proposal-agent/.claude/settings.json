@@ -1,0 +1,23 @@
+{
+  "enabledMcpjsonServers": ["hubspot", "granola", "google-calendar"],
+  "permissions": {
+    "allow": [
+      "mcp__hubspot",
+      "mcp__granola",
+      "mcp__google-calendar",
+      "Bash(python3 scripts/cmo_proposal.py:*)",
+      "Bash(ls:*)",
+      "Bash(mkdir -p output/*)",
+      "Read(output/**)",
+      "Write(output/**)",
+      "Edit(output/**)"
+    ],
+    "deny": [
+      "Bash(rm:*)",
+      "Bash(git push:*)",
+      "Bash(curl:*)",
+      "Bash(mail:*)",
+      "Bash(open:*)"
+    ]
+  }
+}

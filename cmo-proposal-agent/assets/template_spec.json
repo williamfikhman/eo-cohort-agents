@@ -1,0 +1,91 @@
+{
+  "brand": {
+    "company": "Chief Marketplace Officer",
+    "short": "CMO",
+    "sender_name": "William Fikhman",
+    "sender_title": "Founder",
+    "sender_email": "william@marketplaceofficer.com",
+    "website": "marketplaceofficer.com",
+    "accent": "1F3A5F",
+    "font": "Calibri"
+  },
+  "prospect": {
+    "company": "[Prospect Company]",
+    "contact_name": "[Contact Name]",
+    "contact_title": "[Contact Title]",
+    "contact_email": "[contact@prospect.com]"
+  },
+  "title": "Marketplace Growth Proposal",
+  "date": "",
+  "valid_days": 30,
+  "max_pages": 4,
+  "summary": "[Two or three sentences: what the prospect needs and what Chief Marketplace Officer will do about it.]",
+  "situation": [
+    "[What we heard on the call, bullet one]",
+    "[What we heard on the call, bullet two]",
+    "[What we heard on the call, bullet three]"
+  ],
+  "scope": [
+    {
+      "title": "Marketplace audit and 30-day plan",
+      "items": [
+        "Full review of current listings, pricing, advertising, reviews, and account health on each active marketplace.",
+        "Written findings and a prioritized 30-day action plan delivered in the first two weeks."
+      ]
+    },
+    {
+      "title": "Listing and catalog optimization",
+      "items": [
+        "Titles, bullets, A+ content, imagery briefs, and backend keywords for the priority catalog.",
+        "Variation and parent-child structure cleanup where it is costing rank or conversion."
+      ]
+    },
+    {
+      "title": "Advertising management",
+      "items": [
+        "Campaign structure, bids, budgets, and weekly optimization across Sponsored Products, Brands, and Display.",
+        "Monthly efficiency review against agreed ACoS and TACoS targets."
+      ]
+    },
+    {
+      "title": "Brand protection",
+      "items": [
+        "Unauthorized-seller and MAP monitoring with a documented enforcement path.",
+        "Brand Registry, listing-hijack, and suppression issue handling with the marketplace."
+      ]
+    },
+    {
+      "title": "Reporting and cadence",
+      "items": [
+        "Weekly scorecard: sales, ad efficiency, buy box, inventory position, account health.",
+        "Biweekly working session with your team; monthly review of results against plan."
+      ]
+    }
+  ],
+  "pricing": {
+    "retainer_monthly": 3500,
+    "performance_pct": 8,
+    "performance_base": null,
+    "performance_basis": "attributable marketplace revenue",
+    "term_months": 6,
+    "notes": "The retainer covers strategy, execution, and reporting across the marketplaces listed in the scope. Ad spend, marketplace fees, and third-party tools are paid by the client directly."
+  },
+  "terms": [
+    "The monthly retainer is invoiced on the first of each month, due net 15.",
+    "The performance fee is calculated monthly from the marketplace sales reports the client shares and invoiced in arrears with the next retainer.",
+    "The initial term is the number of months shown above, after which the engagement continues month to month with 30 days' written notice from either side.",
+    "The client owns all marketplace accounts, listings, content, and data. Chief Marketplace Officer keeps its methods, templates, and tooling.",
+    "Advertising spend, marketplace fees, and any third-party tools are billed to and paid by the client directly.",
+    "Either side may end the engagement for a material breach that is not fixed within 15 days of written notice.",
+    "Both sides keep the other's non-public information confidential during and after the engagement."
+  ],
+  "next_steps": [
+    "Review this proposal. We will walk through any questions on a 20-minute call.",
+    "Sign the agreement; it arrives by e-signature within one business day of your go-ahead.",
+    "Kickoff within five business days of signature: account access, baseline audit, and the 30-day plan."
+  ],
+  "internal_notes": {
+    "sources": [],
+    "conflicts": []
+  }
+}
