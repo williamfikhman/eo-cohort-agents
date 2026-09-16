@@ -4,13 +4,18 @@ Nothing in this module sends anything to a client or writes anything to QBO. It
 ends with a RunResult — a list of proposals — which is exactly what the digest
 shows William for approval.
 
-Order matters here:
+Order matters here, and reconciliation comes first:
 
   1. pull live open invoices (never an aging report)
-  2. pull recent payments, bank-feed deposits and open credit memos
-  3. per client: validate the invoices against the contract on file
-  4. per invoice: decide the cadence stage, then verify before proposing
-  5. anything unexplained becomes a flag instead of an email
+  2. pull recent payments, bank-feed deposit lines and open credit memos
+  3. RECONCILE — match that money to those invoices before judging anyone
+  4. report AR on what reconciliation leaves behind, not on raw balances
+  5. per client: validate the remaining invoices against the contract on file
+  6. per invoice: decide the cadence stage, then verify again before proposing
+
+Step 3 is why an invoice showing a balance is not treated as a debt. A balance
+means no payment has been applied to it, which is a bookkeeping fact, not a
+statement about the client. Reconciling first is what keeps those two apart.
 """
 
 from __future__ import annotations
@@ -23,9 +28,12 @@ from typing import Iterable
 from .cadence import ESCALATE, NONE, SUPPRESS, decide, due_date_for
 from .config import ClientTerms, Config
 from .ledger import Ledger, new_digest_id
+from .matching import collect_sources, pending_by_invoice, reconcile
 from .models import (
     Flag,
     Invoice,
+    MoneySource,
+    ProposedMatch,
     ReminderCandidate,
     RunResult,
     Snapshot,
@@ -77,14 +85,31 @@ def _recipient(invoice: Invoice, client: ClientTerms | None) -> str | None:
     return invoice.bill_email or None
 
 
-def build_snapshot(invoices: list[Invoice], today: date) -> Snapshot:
-    past_due = [inv for inv in invoices if inv.due_date < today]
+def build_snapshot(
+    invoices: list[Invoice], today: date, matches: list[ProposedMatch] | None = None
+) -> Snapshot:
+    """AR after reconciliation.
+
+    `total_ar` is the gross balance QuickBooks shows. `pending_application` is
+    the part of it the agent has already found money for. Past due is counted on
+    what is left, because an invoice whose payment is sitting in the bank is not
+    overdue, it is unapplied.
+    """
+    pending = pending_by_invoice(matches or [])
+
+    def net(invoice: Invoice) -> Decimal:
+        return max(invoice.balance - pending.get(invoice.id, ZERO), ZERO)
+
+    past_due = [inv for inv in invoices if inv.due_date < today and net(inv) > 0]
+    covered = [inv for inv in invoices if pending.get(inv.id, ZERO) > 0]
     return Snapshot(
         as_of=today,
         total_ar=sum((inv.balance for inv in invoices), ZERO),
-        past_due_ar=sum((inv.balance for inv in past_due), ZERO),
+        past_due_ar=sum((net(inv) for inv in past_due), ZERO),
         open_invoice_count=len(invoices),
         past_due_count=len(past_due),
+        pending_application=sum(pending.values(), ZERO),
+        pending_invoice_count=len(covered),
     )
 
 
@@ -100,12 +125,11 @@ def run_scan(
 
     reminder_refs = RefCounter("R")
     flag_refs = RefCounter("F")
-    match_refs = RefCounter("M")
 
     invoices = open_invoices(qbo, settings.payment_terms_days)
     LOG.info("%s open invoices carrying a balance", len(invoices))
 
-    since = today - timedelta(days=settings.unapplied_lookback_days)
+    since = today - timedelta(days=settings.match_lookback_days)
     payments = recent_payments(qbo, since)
     deposits = recent_deposits(qbo, since, settings.bank_feed_accounts)
     LOG.info("%s payments and %s bank-feed deposits since %s", len(payments), len(deposits), since)
@@ -121,9 +145,27 @@ def run_scan(
             credit_by_customer.get(memo.customer_id, ZERO) + memo.remaining
         )
 
-    result.snapshot = build_snapshot(invoices, today)
+    grouped = _group_by_customer(invoices)
+
+    # --- step one: put the money next to the invoices ----------------------
+    sources = collect_sources(payments, deposits, memos, settings)
+    LOG.info("%s loose money sources to reconcile", len(sources))
+    result.matches, result.unexplained = reconcile(grouped, sources, settings, today)
+    matched_invoice_ids = {inv.id for m in result.matches for inv in m.invoices}
+    LOG.info(
+        "%s proposed matches covering %s invoices; %s sources unexplained",
+        len(result.matches), len(matched_invoice_ids), len(result.unexplained),
+    )
+
+    # --- step two: AR, measured on what reconciliation left behind ---------
+    result.snapshot = build_snapshot(invoices, today, result.matches)
     result.prior_snapshot = ledger.snapshot_near(today - timedelta(days=7))
     sent_stages = ledger.sent_stages()
+
+    _add_double_count_flags(result, flag_refs)
+    _add_stale_confirmation_flags(
+        result, ledger, settings, today, flag_refs, {inv.id for inv in invoices}
+    )
 
     missing_terms: list[str] = []
 
@@ -138,13 +180,12 @@ def run_scan(
                 customer_invoices=customer_invoices,
                 customer_name=customer_name,
                 customer_id=customer_id,
-                payments=payments,
-                deposits=deposits,
+                sources=sources,
                 qbo_credit=credit_by_customer.get(customer_id, ZERO),
                 sent_stages=sent_stages,
+                matched_invoice_ids=matched_invoice_ids,
                 reminder_refs=reminder_refs,
                 flag_refs=flag_refs,
-                match_refs=match_refs,
                 missing_terms=missing_terms,
             )
         except Exception as exc:  # one client's bad data never kills the digest
@@ -170,13 +211,12 @@ def _process_customer(
     customer_invoices: list[Invoice],
     customer_name: str,
     customer_id: str,
-    payments: list,
-    deposits: list,
+    sources: list[MoneySource],
     qbo_credit: Decimal,
     sent_stages: dict[str, set[str]],
+    matched_invoice_ids: set[str],
     reminder_refs: RefCounter,
     flag_refs: RefCounter,
-    match_refs: RefCounter,
     missing_terms: list[str],
 ) -> None:
     settings = config.settings
@@ -279,6 +319,12 @@ def _process_customer(
     suppression_decision = None
 
     for invoice in customer_invoices:
+        if invoice.id in matched_invoice_ids:
+            # Reconciliation already found this money. The invoice is waiting on
+            # bookkeeping, not on the client, so it leaves the cadence entirely
+            # and is reported in the matches section instead.
+            continue
+
         decision = decide(
             invoice=invoice,
             client=client,
@@ -335,32 +381,31 @@ def _process_customer(
         if credit_suppressed:
             continue  # already flagged above; no reminder while a credit is open
 
-        # --- pre-send verification -----------------------------------------
+        # --- verification, on the live invoice ------------------------------
+        # The balance changed between the top-of-run pull and now if money
+        # landed mid-run, so the matcher gets one more look at the fresh figure.
         verification = verify_invoice(
             qbo=qbo,
             invoice=invoice,
-            payments=payments,
-            deposits=deposits,
+            sources=sources,
             settings=settings,
-            ref_start=match_refs.n + 1,
         )
         fresh = verification.invoice
 
-        for candidate in verification.unapplied:
-            match_refs.n += 1
-            result.unapplied.append(candidate)
-
-        if verification.unapplied:
+        if verification.matches:
+            for match in verification.matches:
+                match.ref = f"M{len(result.matches) + 1}"
+                result.matches.append(match)
             result.flags.append(
                 Flag(
                     ref=flag_refs.next(),
                     kind="possible_unapplied_payment",
                     customer_name=customer_name,
                     reason=(
-                        f"Invoice {fresh.label} was due a {decision.stage.label} but money "
-                        f"matching ${fresh.balance:,.2f} may already have arrived."
+                        f"Invoice {fresh.label} was due a {decision.stage.label}, but its live "
+                        f"${fresh.balance:,.2f} balance matched money already received."
                     ),
-                    recommended_action="Check section 3 and apply the payment by hand if it matches.",
+                    recommended_action="See the matches section. Apply it in QBO, then this clears.",
                     invoice_label=fresh.label,
                     amount=fresh.balance,
                     severity="urgent",
@@ -439,6 +484,69 @@ def _process_customer(
         )
 
     _add_suppression_flag(result, customer_name, suppressed, suppression_decision, flag_refs)
+
+
+def _add_double_count_flags(result: RunResult, flag_refs: RefCounter) -> None:
+    """Money booked to income while its invoice is still open is counted twice.
+
+    Once as revenue on the deposit, once as receivable on the invoice. That
+    overstates both, and no reminder is the least of the problem.
+    """
+    for match in result.matches:
+        if match.double_counted <= 0:
+            continue
+        result.flags.append(
+            Flag(
+                ref=flag_refs.next(),
+                kind="double_counted_income",
+                customer_name=match.customer_name,
+                reason=(
+                    f"${match.double_counted:,.2f} matched to invoice {match.invoice_labels} was "
+                    "booked straight to an income account instead of being applied to the invoice. "
+                    "Revenue and AR are both overstated by it."
+                ),
+                recommended_action=(
+                    "In the bank feed, undo the categorization and use Find match against "
+                    "the invoice instead."
+                ),
+                invoice_label=match.invoice_labels,
+                amount=match.double_counted,
+                severity="urgent",
+            )
+        )
+
+
+def _add_stale_confirmation_flags(
+    result: RunResult,
+    ledger: Ledger,
+    settings,
+    today: date,
+    flag_refs: RefCounter,
+    open_invoice_ids: set[str],
+) -> None:
+    """A match William confirmed that nobody ever applied in QuickBooks.
+
+    Confirming a match is a promise to go and apply it. If the invoice is still
+    open days later, the promise was dropped and the invoice is still wrong.
+    """
+    for record in ledger.stale_confirmations(today, settings.confirmed_match_stale_days):
+        if str(record.get("invoice_id")) not in open_invoice_ids:
+            continue  # it was applied, the balance cleared, nothing to chase
+        invoice_label = record.get("invoice_label") or record.get("invoice_id")
+        result.flags.append(
+            Flag(
+                ref=flag_refs.next(),
+                kind="confirmed_match_not_applied",
+                customer_name=str(record.get("customer") or "unknown"),
+                reason=(
+                    f"Match on invoice {invoice_label} was confirmed on "
+                    f"{str(record.get('ts'))[:10]} and the invoice is still open."
+                ),
+                recommended_action="Apply it in QBO, or say so and the agent will re-propose it.",
+                invoice_label=str(invoice_label),
+                severity="urgent",
+            )
+        )
 
 
 def _add_suppression_flag(

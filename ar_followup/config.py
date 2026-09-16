@@ -134,6 +134,15 @@ class Settings:
     short_pay_review_floor: Decimal
     minimum_reminder_balance: Decimal
     bank_feed_accounts: list[str]
+    match_lookback_days: int
+    max_sources_per_match: int
+    max_invoices_per_match: int
+    max_source_pool: int
+    near_tolerance_pct: Decimal
+    near_tolerance_abs: Decimal
+    unexplained_floor: Decimal
+    income_account_hints: list[str]
+    confirmed_match_stale_days: int
     flat_fee_patterns: list[str]
     commission_patterns: list[str]
     digest_subject_prefix: str
@@ -190,6 +199,7 @@ def _parse_settings(data: dict[str, Any]) -> Settings:
     cadence = _require(data, "cadence", "settings.yaml")
     rules = _require(data, "rules", "settings.yaml")
     lines = data.get("invoice_lines") or {}
+    matching = data.get("matching") or {}
     digest = data.get("digest") or {}
 
     # The two standing rules are not configurable downward.
@@ -258,6 +268,23 @@ def _parse_settings(data: dict[str, Any]) -> Settings:
             rules.get("minimum_reminder_balance", 5), "rules"
         ) or Decimal("0"),
         bank_feed_accounts=[str(a) for a in (rules.get("bank_feed_accounts") or [])],
+        match_lookback_days=int(matching.get("lookback_days", 45)),
+        max_sources_per_match=max(2, int(matching.get("max_sources_per_match", 3))),
+        max_invoices_per_match=max(2, int(matching.get("max_invoices_per_match", 3))),
+        max_source_pool=max(2, int(matching.get("max_source_pool", 12))),
+        near_tolerance_pct=_as_decimal(
+            matching.get("near_tolerance_pct", 2.0), "matching"
+        ) or Decimal("0"),
+        near_tolerance_abs=_as_decimal(
+            matching.get("near_tolerance_abs", 25), "matching"
+        ) or Decimal("0"),
+        unexplained_floor=_as_decimal(
+            matching.get("unexplained_floor", 25), "matching"
+        ) or Decimal("0"),
+        income_account_hints=[
+            str(h).lower() for h in (matching.get("income_account_hints") or [])
+        ],
+        confirmed_match_stale_days=int(matching.get("confirmed_match_stale_days", 3)),
         flat_fee_patterns=[str(p).lower() for p in (lines.get("flat_fee_patterns") or [])],
         commission_patterns=[str(p).lower() for p in (lines.get("commission_patterns") or [])],
         digest_subject_prefix=str(digest.get("subject_prefix", "AR digest")),

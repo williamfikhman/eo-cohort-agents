@@ -1,8 +1,13 @@
 # AR follow-up agent
 
-Every morning: read every open invoice out of QuickBooks Online, work out which
-ones are genuinely unpaid, propose the reminders that are due, and route
+Every morning: reconcile the money against the invoices first, then report AR on
+whatever that leaves, propose the reminders that are genuinely due, and route
 everything that looks wrong to William instead of to the client.
+
+The reconciliation step comes first for a reason. An invoice with a balance in
+QuickBooks is not evidence that a client owes money. It is evidence that no
+payment has been applied to it. Those are different facts, and treating the first
+as the second is how a client who paid gets a dunning email.
 
 It sends one email on its own authority — the digest, to William. Client
 reminders go out only after he replies with an approval, and only after the
@@ -41,20 +46,42 @@ Three connector limitations are load-bearing here:
 ```
 scan
  ├─ query live open invoices          (Balance > 0, paged, re-checked in Python)
- ├─ query payments + Chase / QuickBooks Payments deposits, last 21 days
- ├─ query open credit memos
- ├─ per client: validate each invoice against the contract in clients.yaml
+ ├─ query payments, Chase / QuickBooks Payments deposit lines, credit memos
+ │
+ ├─ RECONCILE ─ put that money next to those invoices, best evidence first:
+ │    1. referenced  a payment citing the invoice number
+ │    2. exact       one source equal to one invoice balance
+ │    3. split       several sources adding up to one invoice
+ │    4. lump        one source covering several invoices
+ │    5. near        the same shapes, within tolerance
+ │    No dollar is spent twice. Nothing is applied in QuickBooks.
+ │
+ ├─ AR is then measured on what reconciliation left behind, not on raw balances
+ ├─ per client: validate the remaining invoices against the contract in clients.yaml
  ├─ per invoice: pick the cadence stage
- │    └─ before proposing: re-read the invoice live, then look for money
- │       that already arrived. Any candidate → review queue, never a send.
+ │    └─ before proposing: re-read the invoice live, and run the matcher once
+ │       more against the fresh balance. Any hit → no reminder.
  └─ email the digest to William. Nothing else leaves the building.
 
 send-approved
- ├─ read William's reply in the digest thread (or --approve on the CLI)
+ ├─ read William's reply in the digest thread (or --approve / --confirm on the CLI)
+ ├─ record every match decision in the ledger
  ├─ re-read each approved invoice live, again
- ├─ hold if it is paid, if the balance moved at all, or if a payment turned up
+ ├─ hold if it is paid, if the balance moved at all, if money turned up, or if a
+ │  match on the same invoice was confirmed in the same reply
  └─ send through Gmail from the billing mailbox, and log it
 ```
+
+### Why matching first is the whole point
+
+A client who pays a $9,765.14 invoice in two transfers matches nothing on
+amount, because neither transfer equals the invoice. QuickBooks leaves both
+deposits in the bank feed for a human, and the invoice stays open at its full
+balance. If that deposit was then cleared with **Add** rather than **Find
+match**, the cash posted to an income account and the invoice will never close
+on its own — and the same dollars are now counted twice, once as revenue and
+once as receivable. The agent proposes the split match, flags the double count,
+and keeps the invoice out of the cadence until it clears.
 
 ## Cadence
 
@@ -141,14 +168,22 @@ which is how the cadence gets rehearsed before it goes live.
 
 ## Approving
 
-The digest numbers every proposal `R1`, `R2`, and so on. William replies:
+The digest numbers matches `M1`, `M2` and reminders `R1`, `R2`. William replies:
 
 ```
+CONFIRM M1 M2
 APPROVE R1 R3
 HOLD R2
 ```
 
-or `APPROVE ALL`. Anything not named is not sent. A hold always beats an approve.
+or `APPROVE ALL` / `CONFIRM ALL`. The prefix decides which list a ref belongs to,
+so the verb barely matters. Anything not named is not acted on, and a negative
+always beats a positive for the same ref.
+
+**Confirming a match applies nothing in QuickBooks.** The agent cannot write
+there. A confirmation records that a person read the proposal and agreed, which
+takes the invoice out of the cadence and starts a clock: if the invoice is still
+open three days later, the digest chases it as a confirmed match nobody applied.
 A qualified approve-all (`approve all except R3`) is refused rather than guessed
 at, and reported back in the next `send-approved` run. Only replies from the
 digest recipient count.
@@ -161,7 +196,13 @@ alongside the reply instructions.
 | File | What |
 |---|---|
 | `config/clients.yaml` | Per-client contract terms with effective dates, aliases, billing contacts, credit balances, suppression status and carry-forward flags |
-| `config/settings.yaml` | Cadence, tolerances, bank accounts swept, identities, digest options |
+| `config/settings.yaml` | Cadence, matching rules and tolerances, bank accounts swept, identities, digest options |
+
+The `matching:` block is where reconciliation is tuned: how far back to sweep,
+how many pieces a split may have, how close a near miss may be, and which
+account names count as income for the double-count check. A split in more pieces
+than `max_sources_per_match` is deliberately left for a person rather than
+guessed at.
 
 Contract terms are a **list of periods**, oldest first. A step-down is a new
 period, not an edit to the old one — keeping the history is what lets the agent
@@ -192,4 +233,5 @@ python -m pytest tests/ -q
 The fake QuickBooks in `tests/conftest.py` can serve one set of rows from a list
 query and a different set from a single-invoice read, which reproduces the exact
 failure this build exists to prevent: a list that says open, an invoice that is
-already paid.
+already paid. `tests/test_matching.py` covers the reconciliation engine, including
+the two-transfer split that started it.

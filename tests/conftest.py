@@ -105,15 +105,30 @@ def deposit_row(
     account: str = "Chase Business Checking",
     customer_names: list[str] | None = None,
     line_amounts: list[float] | None = None,
+    line_accounts: list[str] | None = None,
+    linked_to_payment: bool = False,
 ) -> dict[str, Any]:
+    """A bank deposit.
+
+    `line_accounts` is where each line was categorized — naming an income
+    account is the bank-feed "Add" that should have been a "Match".
+    `linked_to_payment` marks the line as already tied to a Payment, which is
+    what a correctly matched deposit looks like.
+    """
     amounts = line_amounts if line_amounts is not None else [total]
     names = customer_names or []
+    accounts = line_accounts or []
     lines = []
     for i, amount in enumerate(amounts):
         detail: dict[str, Any] = {}
         if i < len(names):
             detail["Entity"] = {"name": names[i]}
-        lines.append({"Amount": amount, "DepositLineDetail": detail})
+        if i < len(accounts):
+            detail["AccountRef"] = {"name": accounts[i]}
+        line: dict[str, Any] = {"Amount": amount, "DepositLineDetail": detail}
+        if linked_to_payment:
+            line["LinkedTxn"] = [{"TxnId": "p99", "TxnType": "Payment"}]
+        lines.append(line)
     return {
         "Id": id,
         "TxnDate": txn_date.isoformat(),
@@ -215,3 +230,16 @@ def ledger(tmp_path):
 @pytest.fixture
 def today():
     return TODAY
+
+
+def build_sources(settings, payments=None, deposits=None, memos=None):
+    """Run canned rows through the real parsers into MoneySource objects."""
+    from ar_followup.matching import collect_sources
+    from ar_followup.qbo.reads import parse_credit_memo, parse_deposit, parse_payment
+
+    return collect_sources(
+        [parse_payment(r) for r in (payments or [])],
+        [parse_deposit(r) for r in (deposits or [])],
+        [parse_credit_memo(r) for r in (memos or [])],
+        settings,
+    )

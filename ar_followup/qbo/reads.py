@@ -14,6 +14,7 @@ from ..models import (
     CreditMemo,
     Customer,
     Deposit,
+    DepositLine,
     Invoice,
     InvoiceLine,
     Payment,
@@ -138,21 +139,35 @@ def recent_payments(client: QboClient, since: date) -> list[Payment]:
 
 
 def parse_deposit(row: dict[str, Any]) -> Deposit:
-    names: list[str] = []
-    amounts: list[Decimal] = []
+    """Parse a deposit line by line.
+
+    Two details on each line decide whether the money is loose: the account it
+    was categorized to, and whether it links back to a Payment. A line linked to
+    a Payment is money QBO has already put through AR. A line categorized
+    straight to an income account is money that skipped AR entirely.
+    """
+    lines: list[DepositLine] = []
     for line in row.get("Line") or []:
-        amounts.append(money(line.get("Amount")))
         detail = line.get("DepositLineDetail") or {}
         entity = detail.get("Entity")
-        if isinstance(entity, dict) and entity.get("name"):
-            names.append(str(entity["name"]))
+        lines.append(
+            DepositLine(
+                amount=money(line.get("Amount")),
+                entity_name=(str(entity["name"]) if isinstance(entity, dict) and entity.get("name") else ""),
+                account_name=_ref(detail.get("AccountRef")),
+                linked_txn_types=[
+                    str(t.get("TxnType") or "")
+                    for t in (line.get("LinkedTxn") or [])
+                    if t.get("TxnType")
+                ],
+            )
+        )
     return Deposit(
         id=str(row.get("Id")),
         txn_date=_date(row.get("TxnDate")) or date.today(),
         total=money(row.get("TotalAmt")),
         account_name=_ref(row.get("DepositToAccountRef")),
-        customer_names=names,
-        line_amounts=amounts,
+        lines=lines,
         private_note=str(row.get("PrivateNote") or ""),
     )
 

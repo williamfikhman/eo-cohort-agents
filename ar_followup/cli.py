@@ -66,9 +66,10 @@ def cmd_scan(args) -> int:
         print(payload["_text"])
     print(
         f"\ndigest {payload['digest_id']}: "
+        f"{len(payload['matches'])} matches proposed, "
         f"{len(payload['reminders'])} reminders proposed, "
         f"{len(payload['flags'])} flags, "
-        f"{len(payload['unapplied'])} possible unapplied payments"
+        f"{len(payload['unexplained'])} unexplained payments"
         + ("" if args.no_email else f" — emailed to {config.settings.digest_to}")
     )
     if payload["errors"]:
@@ -84,6 +85,7 @@ def cmd_send_approved(args) -> int:
         ledger,
         digest_id=args.digest,
         approve_refs=args.approve,
+        confirm_refs=args.confirm,
         dry_run=args.dry_run,
         today=_parse_date(args.date),
     )
@@ -95,7 +97,11 @@ def cmd_send_approved(args) -> int:
     sent = sum(1 for o in outcomes if o.status == "sent")
     held = sum(1 for o in outcomes if o.status == "held")
     failed = sum(1 for o in outcomes if o.status == "failed")
-    print(f"\n{sent} sent / {held} held / {failed} failed")
+    confirmed = sum(1 for o in outcomes if o.status == "confirmed")
+    print(
+        f"\n{confirmed} matches confirmed / {sent} reminders sent / "
+        f"{held} held / {failed} failed"
+    )
     return 1 if failed else 0
 
 
@@ -142,7 +148,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     send = sub.add_parser("send-approved", help="send the reminders William approved")
     send.add_argument("--digest", help="digest id; defaults to the most recent")
-    send.add_argument("--approve", nargs="*", help="approve these refs from the terminal, e.g. R1 R3")
+    send.add_argument("--approve", nargs="*", help="approve these reminders from the terminal, e.g. R1 R3")
+    send.add_argument("--confirm", nargs="*", help="confirm these matches from the terminal, e.g. M1 M2")
     send.add_argument("--date", help="pretend it is this date (YYYY-MM-DD)")
     send.add_argument("--dry-run", action="store_true", help="verify everything, send nothing")
     send.set_defaults(func=cmd_send_approved)

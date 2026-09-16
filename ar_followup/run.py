@@ -1,12 +1,15 @@
 """The two things the agent actually does.
 
-`scan` runs every morning: read QuickBooks, decide, email William the digest.
-It sends no client email and writes nothing to QBO, so it is safe on a cron.
+`scan` runs every morning: reconcile the money against the invoices first, then
+report AR on whatever that leaves, and email William the digest. It sends no
+client email and writes nothing to QBO, so it is safe on a cron.
 
-`send-approved` runs after William replies: it re-verifies every approved
-reminder against live QuickBooks data one more time and sends the ones that
-still check out. An approval is permission to send, not proof the invoice is
-still unpaid — money that arrived overnight still wins.
+`send-approved` runs after William replies. It records his decisions on the
+proposed matches, then re-verifies every approved reminder against live
+QuickBooks data one more time and sends the ones that still check out. An
+approval is permission to send, not proof the invoice is still unpaid — money
+that arrived overnight still wins, and so does a match confirmed in the same
+reply.
 """
 
 from __future__ import annotations
@@ -24,13 +27,14 @@ from .config import Config
 from .digest import render_html, render_text, subject as digest_subject
 from .gmail import GmailClient, GmailError
 from .ledger import Ledger
+from .matching import collect_sources
 from .models import money
 from .pipeline import run_scan
 from .qbo.auth import QboAuth
-from .qbo.client import QboClient
-from .qbo.reads import recent_deposits, recent_payments, refresh_invoice
+from .qbo.client import QboClient, QboError
+from .qbo.reads import credit_memos, recent_deposits, recent_payments, refresh_invoice
 from .templates import render
-from .verify import unapplied_payment_candidates
+from .verify import money_for_invoice
 
 LOG = logging.getLogger("ar_followup.run")
 
@@ -45,6 +49,44 @@ def _digest_payload(result, config: Config) -> dict[str, Any]:
     return {
         "digest_id": result.digest_id,
         "as_of": result.as_of,
+        "matches": [
+            {
+                "ref": m.ref,
+                "customer_name": m.customer_name,
+                "invoice_ids": [inv.id for inv in m.invoices],
+                "invoice_labels": m.invoice_labels,
+                "sources": [
+                    {
+                        "kind": s.kind,
+                        "id": s.id,
+                        "date": s.txn_date,
+                        "amount": s.amount,
+                        "account": s.account,
+                        "posted_to_income": s.posted_to_income,
+                    }
+                    for s in m.sources
+                ],
+                "amount": m.amount,
+                "strategy": m.strategy,
+                "confidence": m.confidence,
+                "rationale": m.rationale,
+                "double_counted": m.double_counted,
+            }
+            for m in result.matches
+        ],
+        "unexplained": [
+            {
+                "ref": u.ref,
+                "customer_name": u.source.customer_name,
+                "kind": u.source.kind,
+                "source_id": u.source.id,
+                "date": u.source.txn_date,
+                "amount": u.source.amount,
+                "account": u.source.account,
+                "reason": u.reason,
+            }
+            for u in result.unexplained
+        ],
         "reminders": [
             {
                 "ref": r.ref,
@@ -76,22 +118,6 @@ def _digest_payload(result, config: Config) -> dict[str, Any]:
                 "severity": f.severity,
             }
             for f in result.flags
-        ],
-        "unapplied": [
-            {
-                "ref": m.ref,
-                "invoice_id": m.invoice.id,
-                "invoice_label": m.invoice.label,
-                "customer_name": m.invoice.customer_name,
-                "source": m.source,
-                "source_id": m.source_id,
-                "source_date": m.source_date,
-                "amount": m.amount,
-                "account": m.account,
-                "confidence": m.confidence,
-                "note": m.note,
-            }
-            for m in result.unapplied
         ],
         "errors": result.errors,
         "thread_id": None,
@@ -191,6 +217,7 @@ def send_approved(
     ledger: Ledger,
     digest_id: str | None = None,
     approve_refs: list[str] | None = None,
+    confirm_refs: list[str] | None = None,
     dry_run: bool = False,
     today: date | None = None,
     qbo: QboClient | None = None,
@@ -210,7 +237,9 @@ def send_approved(
         return [SendOutcome("-", "-", "-", "skipped", f"digest {digest_id} not found")]
 
     reminders = digest.get("reminders") or []
-    if not reminders:
+    # A digest can carry matches and no reminders at all — that is a good
+    # morning, not an empty one, and those confirmations still need recording.
+    if not reminders and not (digest.get("matches") or []):
         return [SendOutcome("-", "-", "-", "skipped", f"digest {digest_id} proposed nothing")]
 
     fresh, why = _approval_is_fresh(digest, config, now)
@@ -221,9 +250,10 @@ def send_approved(
         return [SendOutcome("-", "-", "-", "skipped", "today is not a sending day")]
 
     known_refs = {str(r["ref"]) for r in reminders}
-    if approve_refs:
+    if approve_refs or confirm_refs:
         approvals = ApprovalSet(
-            approved={r.upper() for r in approve_refs},
+            approved={r.upper() for r in (approve_refs or [])},
+            confirmed={r.upper() for r in (confirm_refs or [])},
             approver="cli",
             source_message_id="cli",
         )
@@ -248,16 +278,30 @@ def send_approved(
             )
         )
 
-    if not approvals.approved and not approvals.approve_all:
+    if not approvals.says_anything:
         return outcomes + [SendOutcome("-", "-", "-", "skipped", "no approval found; nothing sent")]
 
     qbo = qbo or build_qbo()
     gmail = gmail or GmailClient.from_env()
     sent_stages = ledger.sent_stages()
 
-    since = today - timedelta(days=settings.unapplied_lookback_days)
+    since = today - timedelta(days=settings.match_lookback_days)
     payments = recent_payments(qbo, since)
     deposits = recent_deposits(qbo, since, settings.bank_feed_accounts)
+    try:
+        memos = credit_memos(qbo)
+    except QboError:
+        memos = []
+    sources = collect_sources(payments, deposits, memos, settings)
+
+    # --- record what he said about the matches, before any reminder goes out.
+    # A match confirmed in this reply takes its invoice out of the send list,
+    # even if the same reply approved the reminder for it.
+    confirmed_invoice_ids = _record_match_decisions(digest, ledger, approvals, source)
+    outcomes.extend(
+        SendOutcome(ref, customer, label, status, detail)
+        for ref, customer, label, status, detail in _match_outcomes(digest, approvals)
+    )
 
     for proposal in reminders:
         ref = str(proposal["ref"])
@@ -276,6 +320,14 @@ def send_approved(
 
         invoice_id = str(proposal["invoice_id"])
         stage_id = str(proposal["stage_id"])
+        if invoice_id in confirmed_invoice_ids:
+            outcomes.append(
+                SendOutcome(
+                    ref, customer, label, "held",
+                    "a match on this invoice was confirmed in the same reply",
+                )
+            )
+            continue
         if stage_id in sent_stages.get(invoice_id, set()):
             outcomes.append(
                 SendOutcome(ref, customer, label, "skipped", f"stage '{stage_id}' already sent")
@@ -307,15 +359,15 @@ def send_approved(
             )
             continue
 
-        matches = unapplied_payment_candidates(invoice, payments, deposits, settings)
-        if matches:
+        found = money_for_invoice(invoice, sources, settings)
+        if found:
             outcomes.append(
                 SendOutcome(
                     ref,
                     customer,
                     invoice.label,
                     "held",
-                    f"possible unapplied payment found ({matches[0].note})",
+                    f"money already received matches this invoice ({found[0].rationale})",
                 )
             )
             continue
@@ -357,3 +409,63 @@ def send_approved(
         outcomes.append(SendOutcome(ref, customer, invoice.label, "sent", to))
 
     return outcomes
+
+
+def _record_match_decisions(
+    digest: dict[str, Any], ledger: Ledger, approvals: ApprovalSet, source: str
+) -> set[str]:
+    """Log every match decision and return the invoices a confirmation covers.
+
+    Confirming a match changes nothing in QuickBooks. It records that a person
+    read the proposal and agreed, which keeps the invoice out of the cadence and
+    starts the clock on actually applying it.
+    """
+    proposals = digest.get("matches") or []
+    known = {str(m["ref"]) for m in proposals}
+    covered: set[str] = set()
+
+    for proposal in proposals:
+        ref = str(proposal["ref"])
+        decision = approvals.match_decision_for(ref, known)
+        if decision == "not_mentioned":
+            continue
+        invoice_ids = [str(i) for i in (proposal.get("invoice_ids") or [])]
+        for invoice_id in invoice_ids or [""]:
+            ledger.record_match_decision(
+                digest_id=str(digest.get("digest_id") or ""),
+                ref=ref,
+                decision=decision,
+                approver=approvals.approver or "cli",
+                source=source,
+                invoice_id=invoice_id,
+                invoice_label=str(proposal.get("invoice_labels") or ""),
+                customer=str(proposal.get("customer_name") or ""),
+                amount=proposal.get("amount"),
+                detail=str(proposal.get("rationale") or ""),
+            )
+        if decision == "confirmed":
+            covered.update(invoice_ids)
+    return covered
+
+
+def _match_outcomes(digest: dict[str, Any], approvals: ApprovalSet):
+    """One reportable line per match decision, for the command-line summary."""
+    proposals = digest.get("matches") or []
+    known = {str(m["ref"]) for m in proposals}
+    for proposal in proposals:
+        ref = str(proposal["ref"])
+        decision = approvals.match_decision_for(ref, known)
+        if decision == "not_mentioned":
+            continue
+        status, detail = (
+            ("confirmed", "apply it in QBO; the agent will chase it if it stays open")
+            if decision == "confirmed"
+            else ("rejected", "will only be re-proposed if the money still matches")
+        )
+        yield (
+            ref,
+            str(proposal.get("customer_name") or ""),
+            str(proposal.get("invoice_labels") or ""),
+            status,
+            detail,
+        )

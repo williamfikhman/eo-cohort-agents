@@ -101,6 +101,79 @@ class Ledger:
             detail=detail,
         )
 
+    def record_match_decision(
+        self,
+        digest_id: str,
+        ref: str,
+        decision: str,
+        approver: str,
+        source: str,
+        invoice_id: str = "",
+        invoice_label: str = "",
+        customer: str = "",
+        amount: Any = None,
+        detail: str = "",
+    ) -> None:
+        """Confirming a match is a promise to go apply it in QuickBooks.
+
+        Recorded so the agent can notice when the promise was not kept, and so
+        the invoice stays out of the cadence in the meantime.
+        """
+        self.append(
+            "match",
+            digest_id=digest_id,
+            ref=ref,
+            decision=decision,
+            approver=approver,
+            source=source,
+            invoice_id=invoice_id,
+            invoice_label=invoice_label,
+            customer=customer,
+            amount=amount,
+            detail=detail,
+        )
+
+    def match_decisions(self, digest_id: str) -> dict[str, dict[str, Any]]:
+        """Latest decision per match ref for one digest."""
+        decisions: dict[str, dict[str, Any]] = {}
+        for record in self.records("match"):
+            if record.get("digest_id") == digest_id:
+                decisions[str(record.get("ref"))] = record
+        return decisions
+
+    def confirmed_invoice_ids(self) -> set[str]:
+        """Invoices with a confirmed match, whoever has or has not applied it."""
+        confirmed: set[str] = set()
+        for record in self.records("match"):
+            invoice_id = str(record.get("invoice_id") or "")
+            if not invoice_id:
+                continue
+            if record.get("decision") == "confirmed":
+                confirmed.add(invoice_id)
+            else:
+                confirmed.discard(invoice_id)  # a later rejection undoes it
+        return confirmed
+
+    def stale_confirmations(self, today: date, after_days: int) -> list[dict[str, Any]]:
+        """Confirmed matches older than `after_days`, latest decision per invoice."""
+        latest: dict[str, dict[str, Any]] = {}
+        for record in self.records("match"):
+            invoice_id = str(record.get("invoice_id") or "")
+            if invoice_id:
+                latest[invoice_id] = record
+
+        stale: list[dict[str, Any]] = []
+        for record in latest.values():
+            if record.get("decision") != "confirmed":
+                continue
+            try:
+                when = datetime.fromisoformat(str(record["ts"])).date()
+            except (KeyError, ValueError):
+                continue
+            if (today - when).days >= after_days:
+                stale.append(record)
+        return stale
+
     def record_send(
         self,
         digest_id: str,

@@ -19,7 +19,9 @@
 
 clients:
   - name: Kaaral
-    aliases: ["Kaaral USA", "Kaaral Inc"]
+    # "Kaaral USA LLC" is the exact QBO display name as of Sept 2026. Matching is
+    # on the display name, so the real spelling has to be in this list.
+    aliases: ["Kaaral USA LLC", "Kaaral USA", "Kaaral Inc"]
     billing_contact: null            # fill in before any reminder can send
     terms:
       - effective_from: 2026-01-01
@@ -46,6 +48,8 @@ clients:
         note: "Carried forward — previously marked for collections follow-up."
 
   - name: Rust Check Corp
+    # Confirm the exact QBO display name and add it here; the agent flags any
+    # client it cannot match as having no contract terms on file.
     aliases: ["Rust Check", "RustCheck"]
     billing_contact: null
     terms:
@@ -68,7 +72,8 @@ clients:
       review_on: 2026-10-15
 
   - name: Zendex
-    aliases: ["Zendex Corp"]
+    # "Zendex Tool Corp" is the exact QBO display name as of Sept 2026.
+    aliases: ["Zendex Tool Corp", "Zendex Corp"]
     billing_contact: null
     terms:
       - effective_from: 2026-01-01

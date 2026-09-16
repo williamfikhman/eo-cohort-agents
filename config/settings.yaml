@@ -92,6 +92,48 @@ rules:
     - Chase
     - QuickBooks Payments
 
+matching:
+  # The reconciliation pass runs before anything is reported about AR. It puts
+  # every loose payment, deposit line and credit memo next to the open invoices
+  # and proposes what belongs where. It never applies anything in QuickBooks.
+
+  # How far back to sweep for money. Wider than the old unapplied-payment check
+  # on purpose: a client who pays an invoice in two transfers often straddles a
+  # month boundary, and a match found late is still a reminder not sent.
+  lookback_days: 45
+
+  # A split payment made of more pieces than this is a reconciliation job for a
+  # person, not something to guess at. Same idea for one payment clearing many
+  # invoices.
+  max_sources_per_match: 3
+  max_invoices_per_match: 3
+
+  # Hard cap on loose items considered per customer, so a messy account cannot
+  # turn the morning run into a subset-sum marathon.
+  max_source_pool: 12
+
+  # A match that needs tolerance is never "high" confidence, but it is still
+  # worth showing. Under these, a near miss is a candidate; over, it is nothing.
+  near_tolerance_pct: 2.0
+  near_tolerance_abs: 25.00
+
+  # Ignore loose change when reporting money that matched nothing.
+  unexplained_floor: 25.00
+
+  # A deposit line categorized to one of these is money that skipped AR. If an
+  # invoice for it is still open, revenue and AR are both overstated.
+  income_account_hints:
+    - income
+    - sales
+    - revenue
+    - service
+    - consulting
+    - commission
+
+  # A match William confirmed but nobody applied in QBO gets chased after this
+  # many days. A confirmed match that never lands is the same problem again.
+  confirmed_match_stale_days: 3
+
 invoice_lines:
   # Used to validate an invoice against the client's contract terms. Matched
   # case-insensitively against the line's item name and description.

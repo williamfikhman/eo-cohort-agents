@@ -1,78 +1,73 @@
 # Sample digest, rendered from made-up invoices by tests/conftest.py's fake
 # QuickBooks. No real client data. Regenerate any time to see a format change.
 
-Subject: AR digest Sat Sep 12 — 2 to approve, 4 urgent, 2 possible payments · $32,650.00 past due
+Subject: AR digest Wed Sep 16 — 2 to match, 2 to approve, 1 urgent · $16,912.13 really past due
 
-AR digest — Saturday, September 12, 2026
-digest 2026-09-12-440aeb
+AR digest — Wednesday, September 16, 2026
+digest 2026-09-16-64e68d
 
-Nothing below has been sent and nothing has been changed in QuickBooks.
+Reconciled first, then reported. Nothing below has been sent and nothing has been changed in QuickBooks.
 
-1. REMINDERS QUEUED FOR APPROVAL
+1. MATCH THESE FIRST — money received, not yet applied in QBO
 
-   R1  Northline Pet Co · #1049 · $4,500.00 · 4 days overdue
-       Friendly reminder → ap@northlinepet.com
-   R2  Verdant Skincare · #1050 · $3,275.00 · 11 days overdue
-       Firmer follow-up (cc Angie) → accounting@verdantskin.com (cc angie@marketplaceofficer.com)
+   M1  JATAI International · #1883 · $9,765.14 · high confidence (split)
+       2 payments totalling $9,765.14 ($5,000.00 on 2026-09-09, $4,765.14 on 2026-09-12) add up to invoice #1883 exactly.
+   M2  VI DERM · #1853 · $3,084.20 · high confidence (exact)
+       Deposit d3 of $3,084.20 on 2026-09-10 is the exact balance of invoice #1853.
+       !! $3,084.20 of this was booked to income, so revenue and AR are both overstated.
+
+   $12,849.34 found in total. Reply CONFIRM M1 M2 for the ones that are right.
+   The agent never applies these itself. Confirming means you or Angie will.
+
+2. REMINDERS QUEUED FOR APPROVAL — owed after the matches above
+
+   R1  OM Gallery Enterprises · #1868 · $4,473.89 · 15 days overdue
+       Firmer follow-up (cc Angie) → ap@omgallery.com (cc angie@marketplaceofficer.com)
+   R2  House of Smooth · #1880 · $4,838.24 · 15 days overdue
+       Firmer follow-up (cc Angie) → accounting@houseofsmooth.com (cc angie@marketplaceofficer.com)
 
    Reply: APPROVE R1 R2   |   APPROVE ALL   |   HOLD R3
 
-2. FLAGGED — needs you, not the client
+3. FLAGGED — needs you, not the client
 
-   !! F1  BeLAGU · #1047
-       Invoice #1047 for $2,975.00: 74 days past due — past the 21-day escalation line.
-       → Personal call from Angie or William. Automated email stops here.
-   !! F2  OcuSoft · #1043
-       Invoice #1043 was due a Firmer follow-up (cc Angie) but money matching $5,200.00 may already have arrived.
-       → Check section 3 and apply the payment by hand if it matches.
-   !! F3  Rust Check Corp
-       Rust Check Corp carries a $6,026.67 credit (as of 2026-09-01) and invoice #1046 has no credit memo applied.
-       → Apply the credit in QBO before any of these invoices is chased.
-   !! F4  Troomy Nootropics · #1042
-       Invoice #1042 was due a Friendly reminder but money matching $2,400.00 may already have arrived.
-       → Check section 3 and apply the payment by hand if it matches.
-      F5  7 clients
-       No contract terms on file, so their invoices were not validated: BeLAGU, Labeldaddy, Northline Pet Co, OcuSoft, Silko / CocoChoco, Troomy Nootropics, Verdant Skincare.
+   !! F1  VI DERM · #1853
+       $3,084.20 matched to invoice #1853 was booked straight to an income account instead of being applied to the invoice. Revenue and AR are both overstated by it.
+       → In the bank feed, undo the categorization and use Find match against the invoice instead.
+      F2  5 clients
+       No contract terms on file, so their invoices were not validated: House of Smooth, JATAI International, Labeldaddy, OM Gallery Enterprises, VI DERM.
        → Add their rate structures to config/clients.yaml as they come up.
-      F6  Kaaral · #1045
-       Contract is 50% of net sales and invoice #1045 has no commission line.
+      F3  Kaaral USA · #1856
+       Contract is 50% of net sales and invoice #1856 has no commission line.
        → Check whether the sales report landed before billing ran.
-      F7  Kaaral
+      F4  Kaaral USA
        Carried forward — previously marked for collections follow-up.
        → Human follow-up; automation stays off.
-      F8  Kaaral
-       Active rate renegotiation / dispute-sensitive. Aug + Sep invoices reissued. 1 past-due invoice waiting: #1045.
-       → Human outreach only until the status in clients.yaml changes.
-      F9  Labeldaddy
-       2 open invoices totalling $7,600.00 stacked across 2026-07, 2026-08 — churn / collection risk, not a dunning case. 2 past-due invoices waiting: #1044, #1051.
+      F5  Labeldaddy
+       2 open invoices totalling $7,600.00 stacked across 2026-07, 2026-08 — churn / collection risk, not a dunning case. 2 past-due invoices waiting: #1744, #1801.
        → Personal outreach from Angie or William before anything automated.
-      F10  Rust Check Corp · #1046
-       Contract period from 2026-01-01 has no rate on file, so invoice #1046 could not be checked.
+      F6  Zendex Tool Corp · #1849
+       Contract period from 2026-01-01 has no rate on file, so invoice #1849 could not be checked.
        → Fill in flat_fee_monthly and commission_pct in clients.yaml.
-      F11  Rust Check Corp
-       Rust Check Corp has $6,026.67 in open credit memos in QBO. Reminders suppressed until it is applied or exhausted.
-       → Apply the credit to the open invoices, then re-run.
-      F12  Silko / CocoChoco · #1048
-       Invoice #1048: Partially paid: $1,250.00 of $1,850.00 received, $600.00 outstanding.
-       → Confirm whether the short pay is agreed before chasing it.
+      F7  Zendex Tool Corp
+       Carried forward — previously marked for collections follow-up.
+       → Human follow-up; automation stays off.
 
-3. POSSIBLE UNAPPLIED PAYMENTS — verify before anything sends
+4. MONEY WITH NO HOME — arrived, matched no open invoice
 
-   M1  Troomy Nootropics · #1042 · balance $2,400.00
-       Chase Business Checking deposit on 2026-09-11 includes $2,400.00, an exact match for this balance.
-       deposit d3 · 2026-09-11 · $2,400.00 · Chase Business Checking · exact match
-   M2  OcuSoft · #1043 · balance $5,200.00
-       Payment p7 dated 2026-09-11 has $5,200.00 unapplied, an exact match for this balance.
-       payment p7 · 2026-09-11 · $5,200.00 · Chase Business Checking · exact match
+   U1  unattributed · $1,450.00 · 2026-09-11
+       $1,450.00 received 5 days ago (Chase Business Checking) matches no open invoice.
+       Deposit d7 · Chase Business Checking
 
-   Nothing is applied automatically. Apply it in QBO by hand if it matches.
+   Usually a prepayment, a refund, or money posted to the wrong place.
 
-4. WHERE AR STANDS
+5. WHERE AR STANDS
 
-   Total AR          $36,800.00  (10 open invoices)
-   Past due          $32,650.00  (9 invoices)
-   Week-over-week past due: up $10,800.00 (from $21,850.00 on Sep 5)
-   Suppressed        4 invoices under a client-level hold
+   Gross AR              $34,073.76  (8 open invoices)
+   Less money in hand   -$12,849.34  (2 invoices waiting on bookkeeping)
+   Really owed           $21,224.42
+   Of that, past due     $16,912.13  (4 invoices)
+   Week-over-week past due: down $4,937.87 (from $21,850.00 on Sep 9)
+   Suppressed            4 invoices under a client-level hold
 
 —
-AR follow-up agent. Read-only against QuickBooks. Sends nothing without your approval.
+AR follow-up agent. Read-only against QuickBooks. Applies nothing, sends nothing, without you.

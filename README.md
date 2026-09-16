@@ -59,8 +59,9 @@ proposes and what a client ever sees. The runner would only hand it to a web sea
 which is not what it does.
 
 It runs on its own cron in `.github/workflows/ar-followup.yml` — a morning scan that
-emails William a digest of proposed reminders and flagged invoices, then hourly
-passes that send only what he approved by reply. It never writes to QuickBooks.
+reconciles loose payments against open invoices, emails William a digest of what
+matched and what is genuinely still owed, then hourly passes that send only what he
+approved by reply. It never writes to QuickBooks.
 Setup, cadence and the config Angie maintains are in
 [`ar_followup/README.md`](ar_followup/README.md); a sample digest is in
 [`docs/sample-digest.txt`](docs/sample-digest.txt).

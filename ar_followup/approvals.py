@@ -4,8 +4,16 @@ The rule the whole build rests on: nothing reaches a client unless a human named
 it. So this parser is deliberately dumb and deliberately strict.
 
   APPROVE ALL        approves every reminder in that digest
-  APPROVE R1 R3      approves exactly those
+  APPROVE R1 R3      approves exactly those reminders
   HOLD R2            holds one (a hold always beats an approve in the same reply)
+  CONFIRM M1 M2      accepts those proposed matches
+  CONFIRM ALL        accepts every match in that digest
+  REJECT M3          says the match is wrong
+
+R refs are reminders and M refs are matches, so the verb barely matters: the
+prefix decides which list a ref belongs to, and a positive verb on an M ref is a
+confirmation however it is phrased. Confirming a match never applies anything in
+QuickBooks. It records that a person agreed with it and will go and do it.
 
 Two traps handled here. First, the digest itself contains the literal text
 "APPROVE R1 R2" as instructions — so quoted text is stripped before parsing, or
@@ -21,10 +29,15 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 
-REF_RE = re.compile(r"\bR(\d+)\b", re.IGNORECASE)
-APPROVE_ALL_RE = re.compile(r"\bapprove\s+all\b", re.IGNORECASE)
-APPROVE_RE = re.compile(r"\b(?:approve[ds]?|ok|send|yes)\b", re.IGNORECASE)
-HOLD_RE = re.compile(r"\b(?:hold|skip|stop|no|don'?t|do not)\b", re.IGNORECASE)
+REF_RE = re.compile(r"\b([RM])(\d+)\b", re.IGNORECASE)
+APPROVE_ALL_RE = re.compile(r"\b(approve|confirm)\s+all\b", re.IGNORECASE)
+APPROVE_RE = re.compile(
+    r"\b(?:approve[ds]?|confirm(?:ed)?|appl(?:y|ied)|match(?:ed)?|ok|send|yes)\b",
+    re.IGNORECASE,
+)
+HOLD_RE = re.compile(
+    r"\b(?:hold|skip|stop|reject(?:ed)?|wrong|no|don'?t|do not)\b", re.IGNORECASE
+)
 # "approve all except R3" is a sentence we refuse to interpret. Carving an
 # exception out of an approve-all is exactly where a wrong send comes from.
 EXCLUSION_RE = re.compile(
@@ -42,12 +55,22 @@ QUOTE_MARKERS = (
 @dataclass
 class ApprovalSet:
     approve_all: bool = False
+    confirm_all: bool = False
     approved: set[str] = field(default_factory=set)
     held: set[str] = field(default_factory=set)
+    confirmed: set[str] = field(default_factory=set)
+    rejected: set[str] = field(default_factory=set)
     # Lines we would not risk guessing at. Reported back rather than acted on.
     ambiguous: list[str] = field(default_factory=list)
     source_message_id: str = ""
     approver: str = ""
+
+    @property
+    def says_anything(self) -> bool:
+        return bool(
+            self.approve_all or self.confirm_all
+            or self.approved or self.held or self.confirmed or self.rejected
+        )
 
     def decision_for(self, ref: str, known_refs: set[str]) -> str:
         """'approved' | 'held' | 'not_mentioned'. Default is never 'approved'."""
@@ -57,6 +80,16 @@ class ApprovalSet:
             return "approved"
         if self.approve_all and ref in known_refs:
             return "approved"
+        return "not_mentioned"
+
+    def match_decision_for(self, ref: str, known_refs: set[str]) -> str:
+        """'confirmed' | 'rejected' | 'not_mentioned'."""
+        if ref in self.rejected:
+            return "rejected"
+        if ref in self.confirmed:
+            return "confirmed"
+        if self.confirm_all and ref in known_refs:
+            return "confirmed"
         return "not_mentioned"
 
 
@@ -81,27 +114,37 @@ def parse_reply(body: str) -> ApprovalSet:
         line = line.strip()
         if not line:
             continue
-        refs = {f"R{m.group(1)}" for m in REF_RE.finditer(line)}
+        found = [(m.group(1).upper(), m.group(2)) for m in REF_RE.finditer(line)]
+        reminders = {f"R{n}" for prefix, n in found if prefix == "R"}
+        matches = {f"M{n}" for prefix, n in found if prefix == "M"}
         holding = bool(HOLD_RE.search(line))
         approving = bool(APPROVE_RE.search(line))
 
-        if APPROVE_ALL_RE.search(line):
-            # An approve-all qualified by anything at all is not an approve-all.
-            if holding or refs or EXCLUSION_RE.search(line):
+        blanket = APPROVE_ALL_RE.search(line)
+        if blanket:
+            # A blanket approval qualified by anything at all is not blanket.
+            if holding or reminders or matches or EXCLUSION_RE.search(line):
                 result.ambiguous.append(line)
                 continue
-            result.approve_all = True
+            if blanket.group(1).lower() == "confirm":
+                result.confirm_all = True
+            else:
+                result.approve_all = True
             continue
-        if not refs:
+
+        if not reminders and not matches:
             continue
         if holding:
-            result.held |= refs
+            result.held |= reminders
+            result.rejected |= matches
         elif approving:
-            result.approved |= refs
+            result.approved |= reminders
+            result.confirmed |= matches
 
-    # A hold always wins over an approve for the same ref, in the same reply or
-    # across lines. Cheaper to miss a send than to make one we were told not to.
+    # A negative always wins over a positive for the same ref, in the same reply
+    # or across lines. Cheaper to miss one than to do one we were told not to.
     result.approved -= result.held
+    result.confirmed -= result.rejected
     return result
 
 
@@ -111,13 +154,18 @@ def merge(replies: list[ApprovalSet]) -> ApprovalSet:
     for reply in replies:
         if reply.approve_all:
             merged.approve_all = True
+        if reply.confirm_all:
+            merged.confirm_all = True
         merged.ambiguous.extend(reply.ambiguous)
         merged.approved = (merged.approved - reply.held) | reply.approved
         merged.held = (merged.held - reply.approved) | reply.held
-        if reply.approved or reply.held or reply.approve_all:
+        merged.confirmed = (merged.confirmed - reply.rejected) | reply.confirmed
+        merged.rejected = (merged.rejected - reply.confirmed) | reply.rejected
+        if reply.says_anything:
             merged.source_message_id = reply.source_message_id or merged.source_message_id
             merged.approver = reply.approver or merged.approver
     merged.approved -= merged.held
+    merged.confirmed -= merged.rejected
     return merged
 
 
