@@ -174,6 +174,42 @@ class Ledger:
                 stale.append(record)
         return stale
 
+    def record_application(
+        self,
+        digest_id: str,
+        ref: str,
+        payment_id: str,
+        invoice_id: str,
+        invoice_label: str,
+        customer: str,
+        amount: Any,
+        qbo_response_id: str = "",
+    ) -> None:
+        """A write that actually landed in QuickBooks.
+
+        This is the first line of defence against applying the same money twice.
+        The second is the stamp the writer puts in the Payment's PrivateNote,
+        which survives even if this file is lost.
+        """
+        self.append(
+            "applied",
+            digest_id=digest_id,
+            ref=ref,
+            payment_id=payment_id,
+            invoice_id=invoice_id,
+            invoice_label=invoice_label,
+            customer=customer,
+            amount=amount,
+            qbo_response_id=qbo_response_id,
+        )
+
+    def applied_pairs(self) -> set[tuple[str, str]]:
+        """(payment_id, invoice_id) pairs this agent has already posted."""
+        return {
+            (str(r.get("payment_id")), str(r.get("invoice_id")))
+            for r in self.records("applied")
+        }
+
     def record_send(
         self,
         digest_id: str,

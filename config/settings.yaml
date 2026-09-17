@@ -18,10 +18,9 @@ policy:
   # Hard stops. The code refuses to start if either of these is false — they are
   # here to be read, not to be switched off.
   require_approval_before_client_email: true
+  # The reading client stays GET-only forever. Posting to QuickBooks happens in
+  # one place and one place only: the `apply-confirmed` command, gated below.
   allow_qbo_writes: false
-  # Never auto-apply a payment or a deposit to an invoice. Proposed matches go in
-  # the digest for a human. Deposit-to-invoice matching has double-payment risk.
-  allow_payment_application: false
   # Reminders only go out on these weekdays (0 = Monday). No weekend dunning.
   send_weekdays: [0, 1, 2, 3, 4]
   # An approval expires if it is not acted on within this many hours. Stale
@@ -91,6 +90,38 @@ rules:
   bank_feed_accounts:
     - Chase
     - QuickBooks Payments
+
+payment_application:
+  # Posting to QuickBooks. Off until you turn it on, and narrow even then.
+  #
+  # Only one kind of fix is safe for a machine to make: money that is ALREADY a
+  # Payment in QuickBooks, sitting unapplied on the customer's account, being
+  # allocated to the invoice it belongs to. No new money is created, nothing is
+  # deposited, the cash total does not move. Only the allocation changes.
+  #
+  # The other two kinds stay manual on purpose:
+  #   * a bank-feed deposit with no Payment behind it — posting one would book
+  #     the cash a second time. The fix is in the bank feed: undo the Add and
+  #     use Find match. The digest tells you which ones and why.
+  #   * a deposit already categorized to an income account — same problem, plus
+  #     the revenue has to be backed out. A person needs to see that.
+  enabled: false
+
+  # Cannot be turned off. An application requires a CONFIRM from the digest
+  # reply; the agent never decides on its own that a match is right.
+  require_confirmed_match: true
+
+  # Cannot be turned on. Deposit-sourced matches are never posted automatically.
+  allow_deposit_sources: false
+
+  # Blast radius. A run that wants to exceed either of these stops and says so
+  # rather than working through the list.
+  max_applications_per_run: 10
+  max_amount_per_application: 25000.00
+
+  # Stamped into the PrivateNote of everything the agent touches, so an
+  # application is identifiable in QuickBooks and can never be made twice.
+  audit_stamp: "AR-agent"
 
 matching:
   # The reconciliation pass runs before anything is reported about AR. It puts

@@ -4,6 +4,7 @@
     python -m ar_followup auth --refresh-token ... --realm-id ...
     python -m ar_followup scan --no-email --print
     python -m ar_followup send-approved --dry-run
+    python -m ar_followup apply-confirmed --live
     python -m ar_followup status
 """
 
@@ -14,6 +15,7 @@ import logging
 import sys
 from datetime import date
 
+from .apply import apply_confirmed
 from .config import ConfigError, load_config
 from .ledger import Ledger
 from .qbo.auth import QboAuth, QboAuthError
@@ -105,6 +107,30 @@ def cmd_send_approved(args) -> int:
     return 1 if failed else 0
 
 
+def cmd_apply(args) -> int:
+    config = load_config(args.config_dir)
+    ledger = Ledger(args.state_dir)
+    outcomes = apply_confirmed(
+        config,
+        ledger,
+        digest_id=args.digest,
+        dry_run=not args.live,
+        today=_parse_date(args.date),
+    )
+    for outcome in outcomes:
+        print(
+            f"  {outcome.status.upper():<8} {outcome.ref:<4} "
+            f"{outcome.customer[:26]:<26} {outcome.invoice_label:<10} {outcome.detail}"
+        )
+    applied = sum(1 for o in outcomes if o.status == "applied")
+    refused = sum(1 for o in outcomes if o.status == "refused")
+    failed = sum(1 for o in outcomes if o.status == "failed")
+    print(f"\n{applied} applied / {refused} refused / {failed} failed")
+    if not args.live:
+        print("dry run — nothing was posted. Re-run with --live to post.")
+    return 1 if failed else 0
+
+
 def cmd_status(args) -> int:
     ledger = Ledger(args.state_dir)
     digest_id = ledger.latest_digest_id()
@@ -153,6 +179,16 @@ def build_parser() -> argparse.ArgumentParser:
     send.add_argument("--date", help="pretend it is this date (YYYY-MM-DD)")
     send.add_argument("--dry-run", action="store_true", help="verify everything, send nothing")
     send.set_defaults(func=cmd_send_approved)
+
+    apply_cmd = sub.add_parser(
+        "apply-confirmed", help="post confirmed matches to QuickBooks (dry run by default)"
+    )
+    apply_cmd.add_argument("--digest", help="digest id; defaults to the most recent")
+    apply_cmd.add_argument("--date", help="pretend it is this date (YYYY-MM-DD)")
+    apply_cmd.add_argument(
+        "--live", action="store_true", help="actually post. Without this it is a dry run."
+    )
+    apply_cmd.set_defaults(func=cmd_apply)
 
     sub.add_parser("status", help="what the ledger knows").set_defaults(func=cmd_status)
     return parser

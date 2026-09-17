@@ -1,9 +1,11 @@
 name: AR follow-up
 
 # Two shifts a day:
-#   14:00 UTC — the scan. Reads QuickBooks, emails William the digest.
-#   Hourly 16:00-23:00 UTC on weekdays — picks up his reply and sends what he
-#   approved. Nothing reaches a client on the morning run.
+#   14:00 UTC — the scan. Reconciles, then emails William the digest.
+#   Hourly 16:00-23:00 UTC on weekdays — picks up his reply: posts the matches
+#   he confirmed, then sends the reminders he approved, in that order so a
+#   reminder never goes out against an invoice that just got its payment.
+#   Nothing reaches a client and nothing is posted on the morning run.
 on:
   schedule:
     - cron: "0 14 * * 1-5"
@@ -11,10 +13,10 @@ on:
   workflow_dispatch:
     inputs:
       command:
-        description: "scan | send-approved"
+        description: "scan | send-approved | apply-confirmed"
         default: scan
         type: choice
-        options: [scan, send-approved]
+        options: [scan, send-approved, apply-confirmed]
       dry_run:
         description: "Build and verify, send nothing"
         default: false
@@ -87,6 +89,16 @@ jobs:
             echo "command=send-approved" >> "$GITHUB_OUTPUT"
             echo "dry_run=false" >> "$GITHUB_OUTPUT"
           fi
+
+      # Posting runs before sending. An invoice whose payment just landed
+      # should not get a reminder thirty seconds later.
+      - name: Post confirmed matches to QuickBooks
+        if: ${{ steps.shift.outputs.command == 'send-approved' }}
+        continue-on-error: true
+        env:
+          QBO_CLIENT_ID: ${{ secrets.QBO_CLIENT_ID }}
+          QBO_CLIENT_SECRET: ${{ secrets.QBO_CLIENT_SECRET }}
+        run: python -m ar_followup apply-confirmed --live
 
       - name: Run the agent
         env:

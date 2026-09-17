@@ -134,6 +134,10 @@ class Settings:
     short_pay_review_floor: Decimal
     minimum_reminder_balance: Decimal
     bank_feed_accounts: list[str]
+    apply_enabled: bool
+    max_applications_per_run: int
+    max_amount_per_application: Decimal
+    audit_stamp: str
     match_lookback_days: int
     max_sources_per_match: int
     max_invoices_per_match: int
@@ -213,10 +217,18 @@ def _parse_settings(data: dict[str, Any]) -> Settings:
         raise ConfigError(
             "policy.allow_qbo_writes is true. This agent is read-only against QBO."
         )
-    if policy.get("allow_payment_application", False):
+    apply_cfg = data.get("payment_application") or {}
+    if not apply_cfg.get("require_confirmed_match", True):
         raise ConfigError(
-            "policy.allow_payment_application is true. Auto-applying payments has "
-            "known double-payment risk and is not implemented."
+            "payment_application.require_confirmed_match is false. The agent does not "
+            "post to QuickBooks on its own judgement; a match has to be confirmed by a "
+            "person first."
+        )
+    if apply_cfg.get("allow_deposit_sources", False):
+        raise ConfigError(
+            "payment_application.allow_deposit_sources is true. A bank-feed deposit "
+            "with no Payment behind it cannot be posted automatically without booking "
+            "the cash twice. Fix those in the bank feed: undo the Add, then Find match."
         )
 
     raw_stages = _require(cadence, "stages", "settings.yaml cadence")
@@ -268,6 +280,12 @@ def _parse_settings(data: dict[str, Any]) -> Settings:
             rules.get("minimum_reminder_balance", 5), "rules"
         ) or Decimal("0"),
         bank_feed_accounts=[str(a) for a in (rules.get("bank_feed_accounts") or [])],
+        apply_enabled=bool(apply_cfg.get("enabled", False)),
+        max_applications_per_run=int(apply_cfg.get("max_applications_per_run", 10)),
+        max_amount_per_application=_as_decimal(
+            apply_cfg.get("max_amount_per_application", 25000), "payment_application"
+        ) or Decimal("0"),
+        audit_stamp=str(apply_cfg.get("audit_stamp") or "AR-agent"),
         match_lookback_days=int(matching.get("lookback_days", 45)),
         max_sources_per_match=max(2, int(matching.get("max_sources_per_match", 3))),
         max_invoices_per_match=max(2, int(matching.get("max_invoices_per_match", 3))),

@@ -9,7 +9,6 @@ identities:
 policy:
   require_approval_before_client_email: true
   allow_qbo_writes: false
-  allow_payment_application: false
 defaults:
   payment_terms_days: 15
 cadence:
@@ -63,12 +62,36 @@ def test_enabling_qbo_writes_is_refused(tmp_path):
         load_config(write(tmp_path, settings=settings))
 
 
-def test_enabling_auto_apply_is_refused(tmp_path):
-    settings = BASE_SETTINGS.replace(
-        "allow_payment_application: false", "allow_payment_application: true"
-    )
-    with pytest.raises(ConfigError, match="double-payment"):
+def test_posting_without_a_confirmation_is_refused(tmp_path):
+    """The agent never decides on its own that a match is right."""
+    settings = BASE_SETTINGS + """
+payment_application:
+  enabled: true
+  require_confirmed_match: false
+"""
+    with pytest.raises(ConfigError, match="confirmed by a person"):
         load_config(write(tmp_path, settings=settings))
+
+
+def test_posting_deposit_sourced_matches_is_refused(tmp_path):
+    """Posting a payment for cash already in the register books it twice."""
+    settings = BASE_SETTINGS + """
+payment_application:
+  enabled: true
+  allow_deposit_sources: true
+"""
+    with pytest.raises(ConfigError, match="booking the cash twice|cash twice"):
+        load_config(write(tmp_path, settings=settings))
+
+
+def test_posting_is_off_by_default(tmp_path):
+    config = load_config(write(tmp_path))
+    assert config.settings.apply_enabled is False
+
+
+def test_the_repo_has_posting_switched_off(config):
+    """Until William turns it on deliberately, nothing is written to QBO."""
+    assert config.settings.apply_enabled is False
 
 
 def test_overlapping_contract_periods_are_refused(tmp_path):

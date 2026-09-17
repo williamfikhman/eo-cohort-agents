@@ -63,5 +63,6 @@ reconciles loose payments against open invoices, emails William a digest of what
 matched and what is genuinely still owed, then hourly passes that send only what he
 approved by reply. It never writes to QuickBooks.
 Setup, cadence and the config Angie maintains are in
-[`ar_followup/README.md`](ar_followup/README.md); a sample digest is in
+[`ar_followup/README.md`](ar_followup/README.md); the credentials and the order to
+switch things on are in [`docs/GO-LIVE.md`](docs/GO-LIVE.md); a sample digest is in
 [`docs/sample-digest.txt`](docs/sample-digest.txt).

@@ -223,6 +223,16 @@ def settings(config):
 
 
 @pytest.fixture
+def live_config(config):
+    """The repo config with posting switched on, for the write-path tests."""
+    import copy
+
+    live = copy.deepcopy(config)
+    live.settings.apply_enabled = True
+    return live
+
+
+@pytest.fixture
 def ledger(tmp_path):
     return Ledger(tmp_path / "state")
 
@@ -243,3 +253,43 @@ def build_sources(settings, payments=None, deposits=None, memos=None):
         [parse_credit_memo(r) for r in (memos or [])],
         settings,
     )
+
+
+class FakeWriter:
+    """Records what would have been posted to QuickBooks, and posts nothing."""
+
+    def __init__(self, enabled=True, audit_stamp="AR-agent", fail_with=None):
+        from ar_followup.qbo.writer import QboWriter
+
+        self.enabled = enabled
+        self.audit_stamp = audit_stamp
+        self.fail_with = fail_with
+        self.applied: list[dict[str, Any]] = []
+        # Reuse the real guard logic so tests exercise it rather than a copy.
+        self._real = QboWriter.__new__(QboWriter)
+        self._real.audit_stamp = audit_stamp
+        self._real.enabled = enabled
+
+    def stamp_for(self, invoice_id):
+        return self._real.stamp_for(invoice_id)
+
+    def already_stamped(self, payment, invoice_id):
+        return self._real.already_stamped(payment, invoice_id)
+
+    def links_invoice(self, payment, invoice_id):
+        return self._real.links_invoice(payment, invoice_id)
+
+    def apply_payment_to_invoice(self, payment, invoice_id, amount):
+        if self.fail_with:
+            raise self.fail_with
+        # Run the real refusals before recording a success.
+        from ar_followup.qbo.writer import QboWriteRefused
+
+        if self.links_invoice(payment, invoice_id):
+            raise QboWriteRefused(f"payment {payment.get('Id')} already links {invoice_id}")
+        if self.already_stamped(payment, invoice_id):
+            raise QboWriteRefused(f"payment {payment.get('Id')} already stamped")
+        self.applied.append(
+            {"payment_id": str(payment.get("Id")), "invoice_id": str(invoice_id), "amount": amount}
+        )
+        return {"Payment": {"Id": str(payment.get("Id"))}}

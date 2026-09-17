@@ -17,16 +17,30 @@ invoice is re-verified against live QuickBooks data a second time.
 
 | Rule | How it is enforced |
 |---|---|
-| No writes to QuickBooks | `QboClient` only implements GET. `post`, `put`, `delete`, `create`, `update` and `send` raise `QboWriteAttempted`. Every QBO write is a POST, so there is no code path to one. |
-| No client email without approval | `scan` never emails a client. `send-approved` sends only refs a human named, read from William's reply or passed on the command line, and re-verified first. |
+| Nothing reaches a client without approval | `scan` never emails a client. `send-approved` sends only refs a human named, read from William's reply or passed on the command line, and re-verified first. |
+| Nothing is posted to QuickBooks without confirmation | The reading client (`QboClient`) implements GET and nothing else; `post`, `put`, `delete` and friends raise `QboWriteAttempted`. Posting lives in one separate place, `apply-confirmed`, and requires a CONFIRM on a specific match. |
 
-Both are also asserted in `config/settings.yaml` under `policy:`. Flipping either
-one to the unsafe value makes the config fail to load — the run stops before the
-first API call rather than sending on a changed policy.
+Both are asserted in `config/settings.yaml`. Turning off the approval rule, or
+`payment_application.require_confirmed_match`, makes the config fail to load —
+the run stops before the first API call rather than proceeding on a changed
+policy.
 
-Payments are never applied automatically either. Deposit-to-invoice matching has
-real double-payment risk, so proposed matches go in the digest and a person
-applies them in QBO.
+### What posting will and will not do
+
+`apply-confirmed` allocates a Payment that already exists in QuickBooks to the
+invoice it belongs to. No money is created, nothing is deposited, the cash total
+does not move — only the allocation changes.
+
+It will not post a match sourced from a bank deposit, and
+`payment_application.allow_deposit_sources: true` is refused by the config
+loader. A deposit is cash already in the register, so creating a Payment for it
+books the same money twice. Those go to a human with the fix: undo the
+categorization in the bank feed, then use Find match.
+
+Four things stop a double application: the confirmation requirement, the ledger's
+record of every payment-invoice pair posted, an audit stamp written into the
+Payment's private note in QuickBooks, and a live re-read of both the invoice and
+the payment immediately before the write. A failed write is never retried.
 
 ## Why the direct Intuit API and not the MCP connector
 
@@ -158,10 +172,17 @@ python -m ar_followup validate-config
 ```bash
 python -m ar_followup scan --no-email --print   # build the digest, show it, send nothing
 python -m ar_followup scan                      # the morning run
+python -m ar_followup apply-confirmed           # dry run: what it would post to QBO
+python -m ar_followup apply-confirmed --live    # post confirmed matches
 python -m ar_followup send-approved --dry-run   # verify approvals, send nothing
 python -m ar_followup send-approved             # send what William approved
 python -m ar_followup status                    # what the ledger knows
 ```
+
+Posting runs before sending, so a reminder never goes out against an invoice
+whose payment just landed.
+
+**Going live for the first time: see [`../docs/GO-LIVE.md`](../docs/GO-LIVE.md).**
 
 `--date YYYY-MM-DD` on either command runs the day as if it were that date,
 which is how the cadence gets rehearsed before it goes live.
