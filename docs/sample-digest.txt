@@ -1,0 +1,73 @@
+# Sample digest, rendered from made-up invoices by tests/conftest.py's fake
+# QuickBooks. No real client data. Regenerate any time to see a format change.
+
+Subject: AR digest Wed Sep 16 — 2 to match, 2 to approve, 1 urgent · $16,912.13 really past due
+
+AR digest — Wednesday, September 16, 2026
+digest 2026-09-16-64e68d
+
+Reconciled first, then reported. Nothing below has been sent and nothing has been changed in QuickBooks.
+
+1. MATCH THESE FIRST — money received, not yet applied in QBO
+
+   M1  JATAI International · #1883 · $9,765.14 · high confidence (split)
+       2 payments totalling $9,765.14 ($5,000.00 on 2026-09-09, $4,765.14 on 2026-09-12) add up to invoice #1883 exactly.
+   M2  VI DERM · #1853 · $3,084.20 · high confidence (exact)
+       Deposit d3 of $3,084.20 on 2026-09-10 is the exact balance of invoice #1853.
+       !! $3,084.20 of this was booked to income, so revenue and AR are both overstated.
+
+   $12,849.34 found in total. Reply CONFIRM M1 M2 for the ones that are right.
+   The agent never applies these itself. Confirming means you or Angie will.
+
+2. REMINDERS QUEUED FOR APPROVAL — owed after the matches above
+
+   R1  OM Gallery Enterprises · #1868 · $4,473.89 · 15 days overdue
+       Firmer follow-up (cc Angie) → ap@omgallery.com (cc angie@marketplaceofficer.com)
+   R2  House of Smooth · #1880 · $4,838.24 · 15 days overdue
+       Firmer follow-up (cc Angie) → accounting@houseofsmooth.com (cc angie@marketplaceofficer.com)
+
+   Reply: APPROVE R1 R2   |   APPROVE ALL   |   HOLD R3
+
+3. FLAGGED — needs you, not the client
+
+   !! F1  VI DERM · #1853
+       $3,084.20 matched to invoice #1853 was booked straight to an income account instead of being applied to the invoice. Revenue and AR are both overstated by it.
+       → In the bank feed, undo the categorization and use Find match against the invoice instead.
+      F2  5 clients
+       No contract terms on file, so their invoices were not validated: House of Smooth, JATAI International, Labeldaddy, OM Gallery Enterprises, VI DERM.
+       → Add their rate structures to config/clients.yaml as they come up.
+      F3  Kaaral USA · #1856
+       Contract is 50% of net sales and invoice #1856 has no commission line.
+       → Check whether the sales report landed before billing ran.
+      F4  Kaaral USA
+       Carried forward — previously marked for collections follow-up.
+       → Human follow-up; automation stays off.
+      F5  Labeldaddy
+       2 open invoices totalling $7,600.00 stacked across 2026-07, 2026-08 — churn / collection risk, not a dunning case. 2 past-due invoices waiting: #1744, #1801.
+       → Personal outreach from Angie or William before anything automated.
+      F6  Zendex Tool Corp · #1849
+       Contract period from 2026-01-01 has no rate on file, so invoice #1849 could not be checked.
+       → Fill in flat_fee_monthly and commission_pct in clients.yaml.
+      F7  Zendex Tool Corp
+       Carried forward — previously marked for collections follow-up.
+       → Human follow-up; automation stays off.
+
+4. MONEY WITH NO HOME — arrived, matched no open invoice
+
+   U1  unattributed · $1,450.00 · 2026-09-11
+       $1,450.00 received 5 days ago (Chase Business Checking) matches no open invoice.
+       Deposit d7 · Chase Business Checking
+
+   Usually a prepayment, a refund, or money posted to the wrong place.
+
+5. WHERE AR STANDS
+
+   Gross AR              $34,073.76  (8 open invoices)
+   Less money in hand   -$12,849.34  (2 invoices waiting on bookkeeping)
+   Really owed           $21,224.42
+   Of that, past due     $16,912.13  (4 invoices)
+   Week-over-week past due: down $4,937.87 (from $21,850.00 on Sep 9)
+   Suppressed            4 invoices under a client-level hold
+
+—
+AR follow-up agent. Read-only against QuickBooks. Applies nothing, sends nothing, without you.

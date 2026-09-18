@@ -1,0 +1,129 @@
+# AR follow-up agent — per-client contract terms, exclusions and carry-forward flags.
+#
+# Angie maintains this file. Nothing here requires a code change.
+# Validate after every edit:  python -m ar_followup validate-config
+#
+# MATCHING: a client is matched to a QBO customer by `qbo_customer_id` when it is
+# set (exact, preferred), otherwise by `name` or any `aliases` entry against the
+# QBO DisplayName, case-insensitively. A QBO customer with no entry here is
+# billed on the defaults in settings.yaml and every invoice for it is flagged
+# "no contract terms on file" rather than silently reminded.
+#
+# TERMS: `terms` is a list of periods, oldest first. Each period is the contract
+# as it stood between `effective_from` and `effective_to` (null = still current).
+# A step-down is a new period, not an edit to the old one — the history is what
+# lets the agent catch an invoice billed on terms that expired.
+#
+# STATUS: `reminders: suppressed` stops all automated email for a client. The
+# client still appears in the digest under flags, so nothing goes quiet.
+
+clients:
+  - name: Kaaral
+    # "Kaaral USA LLC" is the exact QBO display name as of Sept 2026. Matching is
+    # on the display name, so the real spelling has to be in this list.
+    aliases: ["Kaaral USA LLC", "Kaaral USA", "Kaaral Inc"]
+    billing_contact: null            # fill in before any reminder can send
+    terms:
+      - effective_from: 2026-01-01
+        effective_to: 2026-07-31
+        flat_fee_monthly: null       # historical structure; fill in if known
+        commission_pct: null
+        notes: "Pre-revision terms. Amounts unverified — do not validate against."
+      - effective_from: 2026-08-01
+        effective_to: null
+        flat_fee_monthly: 0          # revised 8/1: no flat fee
+        commission_pct: 50
+        commission_basis: "net sales"
+        notes: >-
+          Revised 8/1/2026 to 50% commission, no flat fee. August and September
+          invoices were reissued under these terms. Any invoice on or after
+          8/1 carrying a flat fee is a billing error.
+    status:
+      reminders: suppressed
+      reason: "Active rate renegotiation / dispute-sensitive. Aug + Sep invoices reissued."
+      since: 2026-08-01
+      review_on: 2026-10-01
+    flags:
+      - type: collections_followup
+        note: "Carried forward — previously marked for collections follow-up."
+
+  - name: Rust Check Corp
+    # Confirm the exact QBO display name and add it here; the agent flags any
+    # client it cannot match as having no contract terms on file.
+    aliases: ["Rust Check", "RustCheck"]
+    billing_contact: null
+    terms:
+      - effective_from: 2026-01-01
+        effective_to: null
+        flat_fee_monthly: null
+        commission_pct: null
+        notes: "Terms unverified pending reconciliation — do not validate amounts."
+    credit_balance:
+      amount: 6026.67
+      as_of: 2026-09-01
+      note: >-
+        Credit carrying forward from Sept 2026. New invoices must net against
+        this until it is exhausted. The agent verifies the credit is drawing
+        down and flags it if an invoice is billed without applying it.
+    status:
+      reminders: suppressed
+      reason: "Reconciliation in progress, and a credit balance is on file."
+      since: 2026-09-01
+      review_on: 2026-10-15
+
+  - name: Zendex
+    # "Zendex Tool Corp" is the exact QBO display name as of Sept 2026.
+    aliases: ["Zendex Tool Corp", "Zendex Corp"]
+    billing_contact: null
+    terms:
+      - effective_from: 2026-01-01
+        effective_to: null
+        flat_fee_monthly: null
+        commission_pct: null
+        notes: "Terms not yet captured."
+    status:
+      reminders: suppressed
+      reason: "Carry-forward collections follow-up — human outreach, not automation."
+      since: 2026-08-20
+      review_on: 2026-10-01
+    flags:
+      - type: collections_followup
+        note: "Carried forward — previously marked for collections follow-up."
+
+  # --- Churn-risk pattern, kept for reference -------------------------------
+  # Labeldaddy, Silko / CocoChoco and BeLAGU each went quiet while their AR
+  # stacked across months. That pattern is detected automatically by the
+  # stacked-AR rule in settings.yaml, so those clients need no entry here
+  # unless their contract terms are being tracked. Add them when terms are known.
+
+# ---------------------------------------------------------------------------
+# TEMPLATE — copy this block, uncomment, fill in. Delete what does not apply.
+#
+#  - name: Example Brand LLC          # must match the QBO DisplayName
+#    qbo_customer_id: "58"            # preferred match key; find it in the QBO URL
+#    aliases: ["Example Brand"]
+#    billing_contact: ap@example.com  # overrides the invoice BillEmail
+#    payment_terms_days: 30           # overrides the Net 15 default
+#    currency: USD
+#    fx_rate: null                    # set if the contract fixes a rate
+#    terms:
+#      - effective_from: 2026-01-01
+#        effective_to: 2026-04-30
+#        flat_fee_monthly: 3000
+#        commission_pct: 8
+#        commission_basis: "net sales"
+#      - effective_from: 2026-05-01   # the step-down: commission only, no flat fee
+#        effective_to: null
+#        flat_fee_monthly: 0
+#        commission_pct: 10
+#        commission_basis: "net sales"
+#    sunset_date: 2026-12-31          # contract ends; alerted 30 days ahead
+#    expected_total_range: [1000, 25000]   # optional sanity band on the invoice total
+#    status:
+#      reminders: active              # active | suppressed
+#
+# That two-period shape is exactly the case that cost us $7,328: a client kept
+# getting billed $3,000/mo + 8% for four months after the contract stepped down
+# to 10%-commission-only. With both periods on file, the agent flags the first
+# such invoice instead of the fourth.
+# ---------------------------------------------------------------------------

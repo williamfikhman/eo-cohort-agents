@@ -1,0 +1,124 @@
+name: AR follow-up
+
+# Two shifts a day:
+#   14:00 UTC — the scan. Reconciles, then emails William the digest.
+#   Hourly 16:00-23:00 UTC on weekdays — picks up his reply: posts the matches
+#   he confirmed, then sends the reminders he approved, in that order so a
+#   reminder never goes out against an invoice that just got its payment.
+#   Nothing reaches a client and nothing is posted on the morning run.
+on:
+  schedule:
+    - cron: "0 14 * * 1-5"
+    - cron: "0 16-23 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "scan | send-approved | apply-confirmed"
+        default: scan
+        type: choice
+        options: [scan, send-approved, apply-confirmed]
+      dry_run:
+        description: "Build and verify, send nothing"
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+# Never let a scan and a send overlap: the send re-reads state the scan writes.
+concurrency:
+  group: ar-followup
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install --quiet requests PyYAML
+
+      # The ledger, the snapshots and the rotated QBO refresh token all live
+      # here. Losing this cache costs the week-over-week line and forces a
+      # re-bootstrap of the token; it never causes a double send, because the
+      # send path re-verifies against live QuickBooks anyway.
+      - name: Restore agent state
+        uses: actions/cache/restore@v4
+        with:
+          path: state
+          key: ar-followup-state-${{ github.run_id }}
+          restore-keys: ar-followup-state-
+
+      - name: Bootstrap the QBO token if the cache was empty
+        env:
+          QBO_CLIENT_ID: ${{ secrets.QBO_CLIENT_ID }}
+          QBO_CLIENT_SECRET: ${{ secrets.QBO_CLIENT_SECRET }}
+          QBO_REFRESH_TOKEN: ${{ secrets.QBO_REFRESH_TOKEN }}
+          QBO_REALM_ID: ${{ secrets.QBO_REALM_ID }}
+        run: |
+          if [ -f state/qbo_token.json ]; then
+            echo "cached token found; leaving it alone"
+          elif [ -n "$QBO_REFRESH_TOKEN" ] && [ -n "$QBO_REALM_ID" ]; then
+            python -m ar_followup auth \
+              --refresh-token "$QBO_REFRESH_TOKEN" \
+              --realm-id "$QBO_REALM_ID"
+          else
+            echo "::error::no cached token and no QBO_REFRESH_TOKEN / QBO_REALM_ID secret"
+            exit 1
+          fi
+
+      - name: Check the config before anything talks to QuickBooks
+        run: python -m ar_followup validate-config
+
+      - name: Work out which shift this is
+        id: shift
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "command=${{ inputs.command }}" >> "$GITHUB_OUTPUT"
+            echo "dry_run=${{ inputs.dry_run }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "0 14 * * 1-5" ]; then
+            echo "command=scan" >> "$GITHUB_OUTPUT"
+            echo "dry_run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "command=send-approved" >> "$GITHUB_OUTPUT"
+            echo "dry_run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Posting runs before sending. An invoice whose payment just landed
+      # should not get a reminder thirty seconds later.
+      - name: Post confirmed matches to QuickBooks
+        if: ${{ steps.shift.outputs.command == 'send-approved' }}
+        continue-on-error: true
+        env:
+          QBO_CLIENT_ID: ${{ secrets.QBO_CLIENT_ID }}
+          QBO_CLIENT_SECRET: ${{ secrets.QBO_CLIENT_SECRET }}
+        run: python -m ar_followup apply-confirmed --live
+
+      - name: Run the agent
+        env:
+          QBO_CLIENT_ID: ${{ secrets.QBO_CLIENT_ID }}
+          QBO_CLIENT_SECRET: ${{ secrets.QBO_CLIENT_SECRET }}
+          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+          AR_APPROVAL_LINK_BASE: ${{ vars.AR_APPROVAL_LINK_BASE }}
+        run: |
+          ARGS=""
+          if [ "${{ steps.shift.outputs.dry_run }}" = "true" ]; then
+            ARGS="--dry-run"
+            if [ "${{ steps.shift.outputs.command }}" = "scan" ]; then ARGS="--no-email --print"; fi
+          fi
+          python -m ar_followup ${{ steps.shift.outputs.command }} $ARGS
+
+      - name: Save agent state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: state
+          key: ar-followup-state-${{ github.run_id }}

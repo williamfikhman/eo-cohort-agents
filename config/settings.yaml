@@ -1,0 +1,186 @@
+# AR follow-up agent — global settings.
+#
+# Angie maintains this file and config/clients.yaml. No code changes needed.
+# Everything here is read at the start of every run; a bad value fails the run
+# loudly (`python -m ar_followup validate-config`) rather than sending anything.
+
+identities:
+  # Digest goes here. This is the only address the agent emails without approval.
+  digest_to: william@marketplaceofficer.com
+  # Reminders are sent from this Gmail mailbox so the thread history lives in Gmail.
+  billing_from: "Chief Marketplace Officer Billing <billing@marketplaceofficer.com>"
+  # Reply-to on client reminders.
+  billing_reply_to: billing@marketplaceofficer.com
+  # cc'd from the +10 stage onward.
+  escalation_cc: angie@marketplaceofficer.com
+
+policy:
+  # Hard stops. The code refuses to start if either of these is false — they are
+  # here to be read, not to be switched off.
+  require_approval_before_client_email: true
+  # The reading client stays GET-only forever. Posting to QuickBooks happens in
+  # one place and one place only: the `apply-confirmed` command, gated below.
+  allow_qbo_writes: false
+  # Reminders only go out on these weekdays (0 = Monday). No weekend dunning.
+  send_weekdays: [0, 1, 2, 3, 4]
+  # An approval expires if it is not acted on within this many hours. Stale
+  # approvals are re-proposed in the next digest instead of firing late.
+  approval_ttl_hours: 36
+
+defaults:
+  # Net 15 unless a client's contract in clients.yaml says otherwise.
+  payment_terms_days: 15
+  currency: USD
+
+cadence:
+  # days_past_due is counted from the invoice due date, not the invoice date.
+  # An invoice is only ever eligible for the highest stage it has reached and
+  # not yet been sent, so a run that misses a day does not double-send.
+  stages:
+    - id: friendly
+      days_past_due: 3
+      template: friendly
+      cc: []
+      sends_email: true
+      label: "Friendly reminder"
+    - id: firm
+      days_past_due: 10
+      template: firm
+      cc: [angie@marketplaceofficer.com]
+      sends_email: true
+      label: "Firmer follow-up (cc Angie)"
+    - id: escalation
+      days_past_due: 21
+      template: escalation
+      cc: [angie@marketplaceofficer.com]
+      # Stage 3 stops automated email entirely. It raises a call task for Angie
+      # or William and the invoice goes quiet from the agent's side.
+      sends_email: false
+      label: "Escalation — personal call, automated email stops"
+
+rules:
+  # A client carrying this many open invoices across different months is a silent
+  # churn / collection risk. Automation is skipped entirely; a human calls.
+  # Seen with Labeldaddy, Silko/CocoChoco and BeLAGU: silent churn hides in
+  # stacked AR, and a dunning email makes it worse.
+  stacked_ar_open_invoice_threshold: 2
+  stacked_ar_requires_distinct_months: true
+
+  # Alert this far ahead of a contract step-down or sunset so billing changes
+  # before the invoice goes out, not after.
+  contract_change_lookahead_days: 30
+
+  # Pre-send verification window: how far back to sweep payments and bank-feed
+  # deposits when looking for money that arrived but was never applied.
+  unapplied_payment_lookback_days: 21
+  # A deposit or payment within this much of the invoice balance counts as a
+  # candidate match. Wide on purpose — a near miss is a review item, not a send.
+  unapplied_match_tolerance_pct: 2.0
+  unapplied_match_tolerance_abs: 25.00
+
+  # A payment that leaves a balance below this is a short pay, not a real
+  # outstanding invoice. Short pays go to the review queue, never to a reminder.
+  short_pay_review_floor: 50.00
+
+  # Ignore invoice balances at or under this (rounding dust).
+  minimum_reminder_balance: 5.00
+
+  # Bank accounts whose deposits are swept for unapplied-payment candidates.
+  # Matched against the QBO deposit-to account name, case-insensitive substring.
+  bank_feed_accounts:
+    - Chase
+    - QuickBooks Payments
+
+payment_application:
+  # Posting to QuickBooks. Off until you turn it on, and narrow even then.
+  #
+  # Only one kind of fix is safe for a machine to make: money that is ALREADY a
+  # Payment in QuickBooks, sitting unapplied on the customer's account, being
+  # allocated to the invoice it belongs to. No new money is created, nothing is
+  # deposited, the cash total does not move. Only the allocation changes.
+  #
+  # The other two kinds stay manual on purpose:
+  #   * a bank-feed deposit with no Payment behind it — posting one would book
+  #     the cash a second time. The fix is in the bank feed: undo the Add and
+  #     use Find match. The digest tells you which ones and why.
+  #   * a deposit already categorized to an income account — same problem, plus
+  #     the revenue has to be backed out. A person needs to see that.
+  enabled: false
+
+  # Cannot be turned off. An application requires a CONFIRM from the digest
+  # reply; the agent never decides on its own that a match is right.
+  require_confirmed_match: true
+
+  # Cannot be turned on. Deposit-sourced matches are never posted automatically.
+  allow_deposit_sources: false
+
+  # Blast radius. A run that wants to exceed either of these stops and says so
+  # rather than working through the list.
+  max_applications_per_run: 10
+  max_amount_per_application: 25000.00
+
+  # Stamped into the PrivateNote of everything the agent touches, so an
+  # application is identifiable in QuickBooks and can never be made twice.
+  audit_stamp: "AR-agent"
+
+matching:
+  # The reconciliation pass runs before anything is reported about AR. It puts
+  # every loose payment, deposit line and credit memo next to the open invoices
+  # and proposes what belongs where. It never applies anything in QuickBooks.
+
+  # How far back to sweep for money. Wider than the old unapplied-payment check
+  # on purpose: a client who pays an invoice in two transfers often straddles a
+  # month boundary, and a match found late is still a reminder not sent.
+  lookback_days: 45
+
+  # A split payment made of more pieces than this is a reconciliation job for a
+  # person, not something to guess at. Same idea for one payment clearing many
+  # invoices.
+  max_sources_per_match: 3
+  max_invoices_per_match: 3
+
+  # Hard cap on loose items considered per customer, so a messy account cannot
+  # turn the morning run into a subset-sum marathon.
+  max_source_pool: 12
+
+  # A match that needs tolerance is never "high" confidence, but it is still
+  # worth showing. Under these, a near miss is a candidate; over, it is nothing.
+  near_tolerance_pct: 2.0
+  near_tolerance_abs: 25.00
+
+  # Ignore loose change when reporting money that matched nothing.
+  unexplained_floor: 25.00
+
+  # A deposit line categorized to one of these is money that skipped AR. If an
+  # invoice for it is still open, revenue and AR are both overstated.
+  income_account_hints:
+    - income
+    - sales
+    - revenue
+    - service
+    - consulting
+    - commission
+
+  # A match William confirmed but nobody applied in QBO gets chased after this
+  # many days. A confirmed match that never lands is the same problem again.
+  confirmed_match_stale_days: 3
+
+invoice_lines:
+  # Used to validate an invoice against the client's contract terms. Matched
+  # case-insensitively against the line's item name and description.
+  flat_fee_patterns:
+    - "retainer"
+    - "monthly fee"
+    - "flat fee"
+    - "management fee"
+  commission_patterns:
+    - "commission"
+    - "% of sales"
+    - "percent of sales"
+    - "rev share"
+
+digest:
+  subject_prefix: "AR digest"
+  # Keep it scannable on a phone: truncate long lists and say what was cut.
+  max_rows_per_section: 25
+  timezone: America/Los_Angeles
