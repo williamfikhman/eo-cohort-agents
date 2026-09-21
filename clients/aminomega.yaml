@@ -1,6 +1,5 @@
 # Transcribed from the executed revised Aminomega agreement (September 14, 2026).
-# signatory_email was not in the PDF -- fill it in before running prepare;
-# validation refuses an empty value.
+# signatory_email taken from the invite in the SignNow account.
 
 company_legal_name: "Aminomega, LLC"
 entity_type: "LLC"
@@ -9,7 +8,7 @@ company_address: "794 Sunrise Blvd., Mt. Bethel, PA 18343"
 
 signatory_name: "William Sandnes"
 signatory_title: "Owner"
-signatory_email: ""
+signatory_email: "will@clinicaltreats.com"
 
 effective_date: "September 14, 2026"
 

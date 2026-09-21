@@ -1,6 +1,5 @@
 # Transcribed from the executed Elleebana agreement (September 14, 2026).
-# signatory_email was not in the PDF -- fill it in before running prepare;
-# validation refuses an empty value.
+# signatory_email taken from the invite in the SignNow account.
 
 company_legal_name: "Ex Import USA Inc. DBA Elleebana"
 entity_type: "Corporation"
@@ -9,7 +8,7 @@ company_address: "2400 Hassell Road, Hoffman Estates, IL 60169"
 
 signatory_name: "Otto Mitter"
 signatory_title: "Owner"
-signatory_email: ""
+signatory_email: "otto@eximport.com.au"
 
 effective_date: "September 14, 2026"
 
