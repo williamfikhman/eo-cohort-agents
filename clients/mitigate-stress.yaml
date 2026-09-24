@@ -1,0 +1,40 @@
+# Built from the Mitigate Stress Amazon Consulting Proposal (Sept 2026).
+# Legal name, entity type and address come from public sources, not a registry
+# filing -- see the notes William received with this file. Signer email is the
+# address on the HubSpot contact record (shared support inbox).
+
+company_legal_name: "Mitigate Stress, Inc."
+entity_type: "Corporation"
+state_of_incorporation: "Virginia"
+company_address: "5535 Beverleys Mill Rd, Broad Run, VA 20137"
+
+signatory_name: "Nathan Colonna"
+signatory_title: "Co-Founder"
+signatory_email: "support@mitigatestress.com"
+
+effective_date: >-
+  September 25, 2026, or the date on which Client’s Amazon Seller Central account
+  is verified, whichever is later
+
+monthly_fee: >-
+  $1,500 for months one through three, $2,000 for months four through six, and
+  $2,500 for each month thereafter
+
+commission_pct: "10%"
+commission_terms: >-
+  The monthly service fee is due on the first business day of each month. The
+  commission shall be invoiced on the first business day of each month for the
+  preceding month’s sales, and payment of each commission invoice is due within
+  fourteen (14) business days of the Company’s receipt of that invoice.
+
+initial_term_months: 6
+
+schedule_b_deliverables:
+  - "Take over existing Seller Central account (US) – Oversee stocking orders for FBA"
+  - "Management of Creator Connections"
+  - "Enforcement and removal of infringing sellers on Amazon"
+  - "Optimize product pages – Brand Name, Title, Images, Bullets, A+ Content, Keywords"
+  - "Daily/Weekly/Monthly general management of the Seller Central account"
+  - "Bi-weekly meeting with clear actionable to-do’s for both sides"
+
+trademark_exhibit: "TBD"
