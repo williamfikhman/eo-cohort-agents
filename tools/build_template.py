@@ -296,9 +296,11 @@ def build():
     para(doc, "").paragraph_format.space_after = Pt(0)
     p = doc.add_paragraph(); p.add_run("Chief Marketplace Officer, Inc.").bold = True
     p.paragraph_format.space_after = Pt(4)
-    for line in ("Signature: ____ {{ cmo_signature_mark }}____",
-                 "Name: {{ cmo_signatory_name }}",
-                 "Title: {{ cmo_signatory_title }}"):
+    sig = doc.add_paragraph("Signature: ____ ")
+    sig.add_run("{{ cmo_signature_mark }}").italic = True   # William's typed mark
+    sig.add_run("____")
+    sig.paragraph_format.space_after = Pt(4)
+    for line in ("Name: {{ cmo_signatory_name }}", "Title: {{ cmo_signatory_title }}"):
         doc.add_paragraph(line).paragraph_format.space_after = Pt(4)
     doc.add_paragraph("Date: {{ cmo_signature_date }}")
 

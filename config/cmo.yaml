@@ -10,7 +10,7 @@ address: "4449 Nogales Drive, Tarzana, CA 91356"
 signatory_name: "William Fikhman"
 signatory_title: "CEO"
 signature_date: today
-signature_mark: "William Fikhman"
+signature_mark: "W. Fikhman"
 
 # The From address on the signing invite. Must be the SignNow account's own
 # address or one it is authorised to send as.
