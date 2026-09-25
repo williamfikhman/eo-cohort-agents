@@ -203,7 +203,7 @@ def load_cmo(path: Path | None = None) -> dict[str, Any]:
     if str(values["signature_date"]).strip().lower() == "today":
         # The CMO block is dated when the agreement is prepared, matching the
         # executed agreements, where the CMO date is the preparation date.
-        values["signature_date"] = _dt.date.today().strftime("%B %-d, %Y")
+        values["signature_date"] = _dt.date.today().strftime("%-m.%-d.%y")  # 9.25.26, as on the form
     return values
 
 

@@ -84,21 +84,16 @@ letting reads through, so a dry run tells you something true about the account.
 
 ## The template
 
-`templates/amazon_services_agreement.docx` is generated from
-`tools/build_template.py`, which carries the agreement text transcribed from the
-executed revised Aminomega agreement — the current form of the contract. The
-three executed agreements (two Aminomega revisions and Elleebana) were diffed
-against each other to confirm that everything outside the per-client variables
-is constant.
+`templates/amazon_services_agreement.docx` is derived from William's own Word
+file, `templates/source/Elleebana_Amazon_Services_Agreement.docx`, by
+`tools/build_template.py`. The script edits only the text of the runs that hold
+per-client values and leaves every style, font, margin, section and column of
+the original in place, so a rendered agreement is the sent form with the
+variables swapped and nothing else.
 
-To change contract language, edit the text in `tools/build_template.py` and run
-it. Editing the .docx directly works too, but the next regeneration overwrites
-it, so the script is the source of truth.
-
-`clients/aminomega.yaml` and `clients/elleebana.yaml` are transcribed from the
-executed agreements and double as regression checks: rendering them reproduces
-the executed text. Their `signatory_email` is blank because the PDFs did not
-contain one, and validation refuses to run until you fill it in.
+To change contract language, edit the source .docx in Word and re-run the
+script. The two real client files, `clients/aminomega.yaml` and
+`clients/elleebana.yaml`, double as regression checks.
 
 ### Why the tags are written the way they are
 
