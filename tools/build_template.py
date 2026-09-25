@@ -13,6 +13,8 @@ from pathlib import Path
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 
 TEMPLATE = Path(__file__).resolve().parents[1] / "templates" / "amazon_services_agreement.docx"
@@ -21,49 +23,65 @@ TEMPLATE = Path(__file__).resolve().parents[1] / "templates" / "amazon_services_
 # ------------------------------------------------------------------ helpers
 
 
+# Measured from the executed Aminomega agreement: Liberation/Times 12pt body,
+# 12pt bold headings, 14pt bold centred title, 1" margins, single spacing, 6pt
+# between paragraphs, 4pt between list items, list levels stepping 0.25".
+FONT = "Times New Roman"
+
+
 def _style(doc):
     normal = doc.styles["Normal"]
-    normal.font.name = "Calibri"
-    normal.font.size = Pt(11)
-    normal.paragraph_format.space_after = Pt(4)
-    for name in ("List Bullet", "List Number"):
-        doc.styles[name].font.name = "Calibri"
-        doc.styles[name].font.size = Pt(11)
+    normal.font.name = FONT
+    normal.font.size = Pt(12)
+    normal.paragraph_format.space_after = Pt(6)
+    normal.paragraph_format.space_before = Pt(0)
+    normal.paragraph_format.line_spacing = 1.0
+    rpr = normal.element.get_or_add_rPr()
+    fonts = rpr.find(qn("w:rFonts"))
+    if fonts is None:
+        fonts = OxmlElement("w:rFonts"); rpr.append(fonts)
+    for attr in ("w:ascii", "w:hAnsi", "w:cs", "w:eastAsia"):
+        fonts.set(qn(attr), FONT)
 
 
-def h1(doc, text):
+def h1(doc, text, centered=False):
     p = doc.add_paragraph()
-    r = p.add_run(text)
-    r.bold = True
-    r.font.size = Pt(12)
+    p.add_run(text).bold = True
     p.paragraph_format.space_before = Pt(6)
+    if centered:
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     return p
 
 
 def h2(doc, text):
     p = doc.add_paragraph()
     p.add_run(text).bold = True
-    p.paragraph_format.space_before = Pt(3)
+    p.paragraph_format.space_before = Pt(6)
     return p
 
 
-def para(doc, text):
-    return doc.add_paragraph(text)
+def para(doc, text, centered=False):
+    p = doc.add_paragraph(text)
+    if centered:
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    return p
 
 
 def bullet(doc, text):
-    return doc.add_paragraph(text, style="List Bullet")
+    return indented(doc, text, level=1, marker="●")
 
 
 def indented(doc, text, level=1, marker=None):
-    """A plain indented paragraph. Used where Word's auto-numbering would be
-    fragile: sub-items in the schedules, and lettered lists."""
+    """A hanging-indent list line, typed rather than auto-numbered so the
+    glyphs and positions match the executed agreement exactly:
+    level 1 glyph at 0.25" and text at 0.5"; each level steps a further 0.5"."""
     p = doc.add_paragraph()
     if marker:
         p.add_run(f"{marker} ")
     p.add_run(text)
-    p.paragraph_format.left_indent = Inches(0.35 * level)
-    p.paragraph_format.space_after = Pt(2)
+    p.paragraph_format.left_indent = Inches(0.5 * level)
+    p.paragraph_format.first_line_indent = Inches(-0.25)
+    p.paragraph_format.space_after = Pt(4)
     return p
 
 
@@ -94,9 +112,7 @@ def build():
     r.bold = True
     r.font.size = Pt(14)
 
-    p = doc.add_paragraph()
-    p.add_run("Effective Date: ").bold = True
-    p.add_run("{{ effective_date }}")
+    para(doc, "Effective Date: {{ effective_date }}", centered=True)
 
     para(
         doc,
@@ -107,7 +123,7 @@ def build():
         "Each may be referred to as a “Party” and collectively as the “Parties.”",
     )
 
-    h1(doc, "RECITALS")
+    h1(doc, "RECITALS", centered=True)
     para(doc, "WHEREAS, Company operates in the business of manufacturing, marketing, and "
               "selling products through various sales platforms, and;")
     para(doc, "WHEREAS, CMO provides consulting services on branding and marketplace "
@@ -262,48 +278,49 @@ def build():
     para(doc, "The Parties acknowledge that they have read and understood this Agreement, "
               "and by signing below, agree to its terms.")
 
-    table = doc.add_table(rows=1, cols=2)
-    client_cell, cmo_cell = table.rows[0].cells
+    # Client block, stacked above CMO's as in the executed agreements. Every
+    # line the client fills is anchored by a SignNow tag; Title is left blank
+    # for the signer to complete, exactly as the executed form leaves it.
+    para(doc, "").paragraph_format.space_after = Pt(0)
+    p = doc.add_paragraph(); p.add_run("{{ company_legal_name }}").bold = True
+    p.paragraph_format.space_after = Pt(4)
+    sig = doc.add_paragraph("Signature: "); anchor(sig, "sn_client_signature")
+    sig.add_run("________________________"); sig.paragraph_format.space_after = Pt(4)
+    name = doc.add_paragraph("Name: "); anchor(name, "sn_client_printed_name")
+    name.add_run("{{ signatory_name }}____________"); name.paragraph_format.space_after = Pt(4)
+    t = doc.add_paragraph("Title: ____________________________"); t.paragraph_format.space_after = Pt(4)
+    date = doc.add_paragraph("Date: "); anchor(date, "sn_client_date")
+    date.add_run("____________________________")
 
-    # Client block: every line the client fills is anchored by a SignNow tag.
-    client_cell.paragraphs[0].add_run("{{ company_legal_name }}").bold = True
-    sig = client_cell.add_paragraph("Signature: ")
-    anchor(sig, "sn_client_signature")
-    sig.add_run("________________________")
-    name = client_cell.add_paragraph("Name: ")
-    anchor(name, "sn_client_printed_name")
-    name.add_run("____________")
-    client_cell.add_paragraph("Title: {{ signatory_title }}")
-    date = client_cell.add_paragraph("Date: ")
-    anchor(date, "sn_client_date")
-    date.add_run("____________")
-
-    # CMO block: pre-filled, no fields. Nothing here is for the client to touch.
-    cmo_cell.paragraphs[0].add_run("Chief Marketplace Officer, Inc.").bold = True
-    cmo_cell.add_paragraph("Signature: ____ {{ cmo_signature_mark }} ____")
-    cmo_cell.add_paragraph("Name: {{ cmo_signatory_name }}")
-    cmo_cell.add_paragraph("Title: {{ cmo_signatory_title }}")
-    cmo_cell.add_paragraph("Date: {{ cmo_signature_date }}")
+    # CMO block: pre-filled, no fields.
+    para(doc, "").paragraph_format.space_after = Pt(0)
+    p = doc.add_paragraph(); p.add_run("Chief Marketplace Officer, Inc.").bold = True
+    p.paragraph_format.space_after = Pt(4)
+    for line in ("Signature: ____ {{ cmo_signature_mark }}____",
+                 "Name: {{ cmo_signatory_name }}",
+                 "Title: {{ cmo_signatory_title }}"):
+        doc.add_paragraph(line).paragraph_format.space_after = Pt(4)
+    doc.add_paragraph("Date: {{ cmo_signature_date }}")
 
     # ---- Schedules
-    h1(doc, "Schedule A – Designated Third Party Marketplaces")
+    h1(doc, "Schedule A – Designated Third Party Marketplaces", centered=True)
     para(doc, "Chief Marketplace Officer, Inc. agrees to provide Consulting Services for the "
-              "following third party marketplaces:")
+              "following third party marketplaces:", centered=True)
     indented(doc, "Amazon.com", marker="1.")
-    para(doc, "Additional marketplaces may be included as agreed upon by both Parties "
-              "through a written amendment to this Schedule.")
+    indented(doc, "Additional marketplaces may be included as agreed upon by both Parties "
+                  "through a written amendment to this Schedule.", level=1)
 
-    h1(doc, "Schedule B – Consulting Services")
+    h1(doc, "Schedule B – Consulting Services", centered=True)
     para(doc, "As part of the Consulting Services, Chief Marketplace Officer, Inc. will "
               "provide the following services to the Company:")
-    h2(doc, "Deliverables:")
+    para(doc, "Deliverables:")
     # {%p ...%} makes docxtpl drop the control paragraph itself, so the loop
     # leaves no blank line above or below the list.
     doc.add_paragraph("{%p for item in schedule_b_deliverables %}")
     indented(doc, "{{ item }}", marker="{{ loop.index }}.")
     doc.add_paragraph("{%p endfor %}")
 
-    h1(doc, "Schedule C – Intellectual Property")
+    h1(doc, "Schedule C – Intellectual Property", centered=True)
     para(doc, "The following outlines the Intellectual Property rights granted under this "
               "Agreement:")
     indented(doc, "Chief Marketplace Officer, Inc. IP", marker="1.")
@@ -325,9 +342,9 @@ def build():
                   "grants to Chief Marketplace Officer, Inc. a non-exclusive, limited, and "
                   "revocable license to allow Chief Marketplace Officer, Inc. to perform the "
                   "Consulting Services.", level=2, marker="○")
-    indented(doc, "{{ trademark_exhibit }}", level=2)
+    para(doc, "{{ trademark_exhibit }}", centered=True)
 
-    h1(doc, "Schedule D – Indemnification Details")
+    h1(doc, "Schedule D – Indemnification Details", centered=True)
     indented(doc, "Company Indemnification", marker="1.")
     indented(doc, "Company agrees to indemnify and hold harmless CMO from claims arising "
                   "from:", level=2, marker="○")
@@ -347,9 +364,8 @@ def build():
                   "Party of its obligations except to the extent that the delay has "
                   "prejudiced the defense of the claim.", level=2, marker="○")
 
-    doc.add_page_break()
-    h1(doc, "Schedule E – Sample Reseller Policy")
-    h2(doc, "INSERT BRAND Reseller Policy")
+    h1(doc, "Schedule E – Sample Reseller Policy", centered=True)
+    h1(doc, "INSERT BRAND Reseller Policy", centered=True)
     para(doc, "To protect our trademarks, logos, copyrighted materials, and ensure clarity "
               "for customers, INSERT BRAND has created this Reseller Policy. All authorized "
               "resellers (referred to as “Reseller”) who purchase INSERT BRAND products (the "
@@ -419,17 +435,18 @@ def build():
               "resellers may only sell INSERT BRAND products to end customers in the United "
               "States and Canada.")
 
-    policy = doc.add_table(rows=1, cols=2)
-    brand, reseller = policy.rows[0].cells
-    brand.paragraphs[0].add_run("INSERT BRAND").bold = True
+    para(doc, "").paragraph_format.space_after = Pt(0)
+    p = doc.add_paragraph(); p.add_run("INSERT BRAND").bold = True; p.paragraph_format.space_after = Pt(4)
     for line in ("Signature: _______________________", "Name: __________________________",
-                 "Title: ____________________________", "Date: ___________________________"):
-        brand.add_paragraph(line)
-    reseller.paragraphs[0].add_run("Reseller Information").bold = True
+                 "Title: ____________________________"):
+        doc.add_paragraph(line).paragraph_format.space_after = Pt(4)
+    doc.add_paragraph("Date: ___________________________")
+    para(doc, "").paragraph_format.space_after = Pt(0)
+    p = doc.add_paragraph(); p.add_run("Reseller Information").bold = True; p.paragraph_format.space_after = Pt(4)
     for line in ("Company Name: _________________", "Signature: _______________________",
-                 "Name: __________________________", "Title: ____________________________",
-                 "Date: ___________________________"):
-        reseller.add_paragraph(line)
+                 "Name: __________________________", "Title: ____________________________"):
+        doc.add_paragraph(line).paragraph_format.space_after = Pt(4)
+    doc.add_paragraph("Date: ___________________________")
 
     TEMPLATE.parent.mkdir(parents=True, exist_ok=True)
     doc.save(TEMPLATE)

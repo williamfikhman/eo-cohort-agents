@@ -143,8 +143,13 @@ def render(
     template_path: Path | None = None,
     build_dir: Path | None = None,
     allow_scaffold: bool = False,
+    signnow_tags: bool = True,
 ) -> RenderResult:
-    """Fill the template, export a PDF, and verify both."""
+    """Fill the template, export a PDF, and verify both.
+
+    ``signnow_tags=False`` renders the tag anchors as nothing at all, for a
+    clean PDF that will be uploaded and have its fields placed by hand.
+    """
     template = template_path or TEMPLATE_PATH
     if not template.is_file():
         raise RenderError(f"template not found: {template}")
@@ -153,7 +158,7 @@ def render(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     context = client.context(cmo)
-    context.update(tag_context())
+    context.update(tag_context() if signnow_tags else {k: "" for k in tag_context()})
 
     todo_values = sorted(
         f"{k}={v!r}" for k, v in context.items()
@@ -204,7 +209,7 @@ def render(
     pdf_text = _pdf_text(pdf_path)
 
     missing = [f.tag_name for f in CLIENT_FIELDS if f.literal not in pdf_text]
-    if missing:
+    if missing and signnow_tags:
         raise RenderError(
             "these SignNow tags did not survive the PDF export intact: "
             f"{', '.join(missing)}\n\n"
@@ -219,5 +224,5 @@ def render(
         docx_path=docx_path,
         pdf_path=pdf_path,
         page_count=_pdf_page_count(pdf_path),
-        tags_found=tuple(f.tag_name for f in CLIENT_FIELDS),
+        tags_found=tuple(f.tag_name for f in CLIENT_FIELDS) if signnow_tags else (),
     )
