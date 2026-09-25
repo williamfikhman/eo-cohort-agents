@@ -157,3 +157,43 @@ def test_missing_template_is_reported(client_values, cmo_values, tmp_path):
             make_config(client_values, tmp_path), cmo_values,
             template_path=tmp_path / "nope.docx", build_dir=tmp_path / "build",
         )
+
+
+def _tiny_png(path):
+    """A valid 2x2 white PNG written with the standard library."""
+    import struct, zlib
+
+    def chunk(tag, data):
+        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+
+    raw = b"".join(b"\x00" + b"\xff\xff\xff" * 2 for _ in range(2))
+    png = (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 2, 2, 8, 2, 0, 0, 0))
+           + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+    path.write_bytes(png)
+
+
+def test_uspto_screenshot_is_placed_when_present(client_values, cmo_values, tmp_path, template_path):
+    """William's rule: the trademark exhibit is the USPTO screenshot when captured."""
+    from docx import Document as ReadDocument
+
+    build = tmp_path / "build"
+    shot = build / "acme" / "trademark-uspto.png"
+    shot.parent.mkdir(parents=True)
+    _tiny_png(shot)
+
+    result = render(make_config(client_values, tmp_path), cmo_values,
+                    template_path=template_path, build_dir=build, allow_scaffold=True)
+    assert result.trademark_screenshot == shot
+
+    doc = ReadDocument(str(result.docx_path))
+    assert doc.inline_shapes, "the screenshot should be embedded as an inline image"
+    text = "\n".join(p.text for p in doc.paragraphs)
+    assert "TBD" not in text
+
+
+def test_exhibit_reads_tbd_without_a_screenshot(client_values, cmo_values, tmp_path, template_path):
+    result = render(make_config(client_values, tmp_path), cmo_values,
+                    template_path=template_path, build_dir=tmp_path / "build")
+    assert result.trademark_screenshot is None
+    from pdfminer.high_level import extract_text
+    assert "TBD" in extract_text(str(result.pdf_path))

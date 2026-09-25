@@ -161,6 +161,26 @@ def build():
     Paragraph(endfor, merged._parent).add_run("{%p endfor %}")
     merged._p.getparent().remove(merged._p)
 
+    # Schedule C item 4: the trademark exhibit. One paragraph after the item,
+    # centred like the "TBD" line on the executed agreements. At render time it
+    # holds the USPTO screenshot when one was captured, otherwise "TBD".
+    p = P[_find(P, "Trademarks/Word Marks")]
+    j = _find(P, "to perform the Consulting Services", P.index(p))
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.text.paragraph import Paragraph
+    exhibit = copy.deepcopy(P[j]._p)
+    for child in list(exhibit):
+        if child.tag != qn("w:pPr"):
+            exhibit.remove(child)
+    eppr = exhibit.find(qn("w:pPr"))
+    if eppr is not None and eppr.find(qn("w:numPr")) is not None:
+        eppr.remove(eppr.find(qn("w:numPr")))
+    P[j]._p.addnext(exhibit)
+    ep = Paragraph(exhibit, P[j]._parent)
+    ep.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    ep.paragraph_format.left_indent = None
+    ep.add_run("{{ trademark_exhibit }}")
+
     doc.save(str(TEMPLATE))
     return TEMPLATE
 

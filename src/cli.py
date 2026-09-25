@@ -104,6 +104,12 @@ def prepare(slug: str, dry_run: bool, allow_scaffold: bool, sandbox: bool) -> No
     click.echo(f"Rendered : {result.docx_path.name}")
     click.echo(f"PDF      : {result.pdf_path.name} ({result.page_count} pages)")
     click.echo(f"Tags     : {', '.join(result.tags_found)} (all present in the PDF)")
+    if result.trademark_screenshot:
+        click.echo("TM       : USPTO screenshot placed under Schedule C item 4")
+    else:
+        click.secho(
+            f"TM       : no USPTO screenshot -- Schedule C reads '{client['trademark_exhibit']}'. "
+            f"Run: python tools/uspto_trademark.py {slug}", fg="yellow")
 
     environ = None
     if sandbox:

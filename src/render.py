@@ -18,7 +18,8 @@ from pathlib import Path
 from typing import Any
 
 from docx import Document
-from docxtpl import DocxTemplate
+from docxtpl import DocxTemplate, InlineImage
+from docx.shared import Inches
 from jinja2 import Environment, StrictUndefined
 from jinja2.exceptions import UndefinedError
 
@@ -49,6 +50,7 @@ class RenderResult:
     pdf_path: Path
     page_count: int
     tags_found: tuple[str, ...]
+    trademark_screenshot: Path | None = None
 
 
 def _docx_text(path: Path) -> str:
@@ -172,6 +174,15 @@ def render(
         )
 
     doc = DocxTemplate(str(template))
+
+    # Schedule C exhibit: the USPTO trademark screenshot captured by
+    # tools/uspto_trademark.py, when it exists; otherwise the config's text
+    # (usually "TBD"). William's rule is that every agreement carries the
+    # screenshot, so its absence is reported by the CLI, not hidden.
+    shot = out_dir / "trademark-uspto.png"
+    if shot.is_file():
+        context["trademark_exhibit"] = InlineImage(doc, str(shot), width=Inches(6))
+
     # StrictUndefined, not Jinja's default: an undefined variable must be a loud
     # failure, never a silently empty line in a signed contract.
     try:
@@ -225,4 +236,5 @@ def render(
         pdf_path=pdf_path,
         page_count=_pdf_page_count(pdf_path),
         tags_found=tuple(f.tag_name for f in CLIENT_FIELDS) if signnow_tags else (),
+        trademark_screenshot=shot if shot.is_file() else None,
     )

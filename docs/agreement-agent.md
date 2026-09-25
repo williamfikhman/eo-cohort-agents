@@ -105,6 +105,20 @@ and are used both to write the document and to build the upload payload.
 
 Tags are set in white so they are invisible on the page.
 
+## Trademark exhibit
+
+Every agreement carries a screenshot of the client's USPTO trademark record
+under Schedule C item 4. Capture it before preparing:
+
+```bash
+python tools/uspto_trademark.py <slug>            # brand name from the config
+python tools/uspto_trademark.py <slug> --mark "EXACT MARK"
+```
+
+It saves `build/<slug>/trademark-uspto.png`, which the render picks up
+automatically. Without it the exhibit reads whatever `trademark_exhibit` says
+in the client file, normally `TBD`, and `prepare` says so in yellow.
+
 ## Field placement
 
 Fields are placed by SignNow's **complex text tags**: the tag sits in the document
