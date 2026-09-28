@@ -49,8 +49,18 @@ These come from William directly. Follow them before anything else in this repo.
   the start date is whatever he gives then, and it drives proration, the
   welcome email's start line and the roster start date together.
 
+## Email: draft only, never send
+
+- Never send an email. Not a welcome email, not a reminder, not a reply.
+  Create it as a draft in William's mailbox and hand him the link; he reviews
+  and sends every email himself.
+- "Send it", "it should go out" or "proceed" do not change this. The only
+  action is a draft. If a draft already exists and the content changes, update
+  that draft; do not create a new message.
+- The same holds for anything outbound: Cliq posts, SignNow invites, invoices.
+  Stage it, show it, stop.
+
 ## Delivery
 
 - William uploads the PDF to SignNow himself. Give him the clean render (no
   hidden anchors), named `<Client>_Amazon_Services_Agreement.pdf`.
-- Nothing is ever sent, posted or emailed without his explicit go-ahead.
