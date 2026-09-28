@@ -60,6 +60,22 @@ These come from William directly. Follow them before anything else in this repo.
 - The same holds for anything outbound: Cliq posts, SignNow invites, invoices.
   Stage it, show it, stop.
 
+## Email identity: william@marketplaceofficer.com only
+
+- Client and team email exists only in william@marketplaceofficer.com. The
+  Gmail connector in these sessions is William's personal account
+  (william.fikhman@gmail.com); never draft or send client mail through it.
+- Before creating any draft, confirm the mailbox identity: Superhuman
+  `list_accounts`, then pass `acting_email=william@marketplaceofficer.com`. If
+  that account is not connected, stop and say so; do not fall back to Gmail.
+- The onboarding skill's "Gmail fallback" is void unless the Gmail connector
+  is verified to be the marketplaceofficer.com mailbox, which it is not today.
+
+Why this rule exists: on 2026-09-28 the Mitigate Stress welcome email was
+sent from the personal Gmail because the fallback was used without checking
+which account it was signed into, and because "it should go" was read as
+permission to send rather than to draft.
+
 ## Delivery
 
 - William uploads the PDF to SignNow himself. Give him the clean render (no
