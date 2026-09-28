@@ -39,6 +39,16 @@ These come from William directly. Follow them before anything else in this repo.
   under Schedule C item 4 at render time.
 - If no live registration is found, say so and render the exhibit as "TBD".
 
+## After signature (onboarding)
+
+- Follow the cmo-client-onboarding skill. Create and stage; William sends.
+- Billing roster: always write what is known and leave the rest blank. Never
+  hold the row for a missing value; the strategist in particular is not needed
+  to add the row. Ask nothing that the row can live without.
+- The invoice waits until William says the Seller Central account is open;
+  the start date is whatever he gives then, and it drives proration, the
+  welcome email's start line and the roster start date together.
+
 ## Delivery
 
 - William uploads the PDF to SignNow himself. Give him the clean render (no
