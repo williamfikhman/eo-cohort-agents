@@ -45,6 +45,11 @@ These come from William directly. Follow them before anything else in this repo.
 - Billing roster: always write what is known and leave the rest blank. Never
   hold the row for a missing value; the strategist in particular is not needed
   to add the row. Ask nothing that the row can live without.
+- HubSpot, on every signing: update every record for the client, not just the
+  deal. The deal goes to Closed Won; every associated contact and the company
+  get lifecycle stage Customer and the lead status this portal uses for a won
+  client. Check the portal's lead-status options with search_properties first;
+  never guess an enum value. Show before/after for all records in one table.
 - The invoice waits until William says the Seller Central account is open;
   the start date is whatever he gives then, and it drives proration, the
   welcome email's start line and the roster start date together.
